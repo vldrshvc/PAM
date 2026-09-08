@@ -19,11 +19,12 @@ class Settings(BaseSettings):
     # Long by default because the widget holds one token and has no refresh flow.
     access_token_expire_minutes: int = 43_200  # 30 days
 
-    # LLM categorization. Any OpenAI-compatible chat endpoint works; Groq is
-    # the default. Leaving the key unset disables /categorize only.
+    # LLM categorization. Any OpenAI-compatible chat endpoint works; Google's
+    # Gemini free tier is the default. Leaving the key unset disables
+    # /categorize only.
     llm_api_key: str | None = None
-    llm_base_url: str = "https://api.groq.com/openai/v1"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    llm_model: str = "gemini-3.5-flash"
     llm_timeout_seconds: float = 10.0
 
 

@@ -8,7 +8,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 - Schema changes between phases use `SQLModel.metadata.create_all` only. When a phase changes the schema, recreate the volume (`docker compose down -v`). No Alembic.
 - "Today" for summaries comes from the client's timezone, sent with the request. No server-side default timezone.
 - Categories are per user: a seeded default set plus the user's own custom ones.
-- LLM provider is a config choice, not a code choice. The categorizer talks to any OpenAI-compatible chat endpoint via the `openai` client; Groq's free tier (Llama 3.3 70B) is the default. Anthropic works by changing `LLM_BASE_URL`/`LLM_MODEL`. Owner's decision, replacing the spec's Anthropic-only wording.
+- LLM provider is a config choice, not a code choice. The categorizer talks to any OpenAI-compatible chat endpoint via the `openai` client; Google Gemini's free tier (Flash) is the default after Groq signup failed for the owner. Groq, OpenRouter or Anthropic work by changing `LLM_BASE_URL`/`LLM_MODEL`. Owner's decision, replacing the spec's Anthropic-only wording.
 
 ## Phase 1 — Core skeleton
 
