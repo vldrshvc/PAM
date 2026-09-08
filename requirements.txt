@@ -3,3 +3,4 @@ uvicorn[standard]==0.52.4
 sqlmodel==0.0.42
 psycopg2-binary==2.9.12
 pydantic-settings==2.15.0
+openai==3.9.0

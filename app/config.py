@@ -11,5 +11,12 @@ class Settings(BaseSettings):
     # How long startup will keep retrying the database before giving up.
     db_startup_timeout_seconds: float = 30.0
 
+    # LLM categorization. Any OpenAI-compatible chat endpoint works; Groq is
+    # the default. Leaving the key unset disables /categorize only.
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_model: str = "llama-3.3-70b-versatile"
+    llm_timeout_seconds: float = 10.0
+
 
 settings = Settings()

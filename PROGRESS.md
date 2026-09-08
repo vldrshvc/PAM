@@ -8,6 +8,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 - Schema changes between phases use `SQLModel.metadata.create_all` only. When a phase changes the schema, recreate the volume (`docker compose down -v`). No Alembic.
 - "Today" for summaries comes from the client's timezone, sent with the request. No server-side default timezone.
 - Categories are per user: a seeded default set plus the user's own custom ones.
+- LLM provider is a config choice, not a code choice. The categorizer talks to any OpenAI-compatible chat endpoint via the `openai` client; Groq's free tier (Llama 3.3 70B) is the default. Anthropic works by changing `LLM_BASE_URL`/`LLM_MODEL`. Owner's decision, replacing the spec's Anthropic-only wording.
 
 ## Phase 1 — Core skeleton
 
@@ -41,7 +42,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 4 — Budget & summaries
 
-**Status:** done, awaiting owner verification
+**Status:** done, verified by owner
 
 **Delivered:** `PATCH /expenses/{id}` (partial, `exclude_unset`; price/date cannot be nulled; category validated), `DELETE /expenses/{id}`, `GET /expenses?date_from&date_to&category_id` (422 on reversed range, newest first). `PATCH /categories/{id}` for `monthly_limit` (null removes it) and `name` (409 on clash or on renaming `uncategorized`). `app/services/budget.py`: pure budget maths (`category_budget`, `budget_totals`, `month_bounds`, `today_in`) with the rule that only budgeted categories count against `budget_total`/`remaining_total`. `GET /summary/daily?tz=` (widget contract, documented in README) and `GET /summary/monthly?month=YYYY-MM&tz=`. Spending is aggregated with one `GROUP BY category_id` over confirmed expenses in the period. `tz` comes from the client; UTC only if omitted.
 
@@ -50,5 +51,15 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 **Known gaps:** none within scope. All data still global (per-user scoping is phase 6).
 
 ## Phase 5 — LLM categorization
+
+**Status:** done, awaiting owner verification (live Groq call not possible from the build sandbox)
+
+**Delivered:** `app/llm.py` wraps one OpenAI-compatible chat call (`temperature=0`, `max_tokens=30`, one retry, configurable timeout) and translates SDK exceptions into `LLMUnavailableError`; a missing key raises `LLMNotConfiguredError`. `app/services/categorization.py` is pure logic: constrained system prompt, user prompt listing the live category names, `parse_amount()` (currency-adjacent number wins over a bare one, comma decimal accepted), `match_category()` (exact case-insensitive after stripping quotes/periods, no fuzzy matching), and `categorize()` which falls back to `uncategorized` whenever the answer does not match. `POST /categorize` returns `{category, amount, fell_back}`; it never writes anything. Errors: 503 when `LLM_API_KEY` is unset, 502 when the provider fails or times out, 422 on blank text. Config: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT_SECONDS`.
+
+**Verified:** amount parser and matcher checked on 18 hand cases. Endpoint exercised against a local stand-in that implements the OpenAI chat-completions protocol (Groq is unreachable from the sandbox): valid answer → Groceries with amount 12.40; invented category "Pizza Palace" → fallback; sloppy `"Eating out".` → matched after fix; empty answer → fallback; provider 500 → 502; provider hang → 502 timeout after 2s; no key → 503; blank text → 422; GET /categorize → 405. Stand-in confirmed the request carries the configured model, temperature 0, max_tokens 30 and a Bearer key.
+
+**Known gaps:** not yet run against real Groq; owner to verify with a real key. Categorization is stateless: the client still has to POST /expenses with the returned category_id.
+
+## Phase 6 — Auth
 
 **Status:** not started

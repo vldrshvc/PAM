@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlmodel import Session
 
 from app.database import create_tables, engine, wait_for_db
-from app.routers import categories, expenses, health, summary
+from app.routers import categories, categorize, expenses, health, summary
 from app.services.categories import seed_default_categories
 
 
@@ -21,7 +21,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Personal Finance Tracker",
     description="Self-hosted expense tracker with LLM categorization and a daily summary for an Android widget.",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -29,3 +29,4 @@ app.include_router(health.router)
 app.include_router(expenses.router)
 app.include_router(categories.router)
 app.include_router(summary.router)
+app.include_router(categorize.router)

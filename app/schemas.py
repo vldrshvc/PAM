@@ -77,6 +77,22 @@ class ExpenseRead(ExpenseBase):
     status: ExpenseStatus
 
 
+# --- Categorization -----------------------------------------------------------
+
+
+class CategorizeRequest(SQLModel):
+    text: str = Field(min_length=1, max_length=500, description='Free text, e.g. "SuperValu €12.40"')
+
+
+class CategorizeResponse(SQLModel):
+    category: CategoryRead
+    # Parsed from the text, not from the model; None if no number was found.
+    amount: Decimal | None
+    # True when the model's answer did not match a category and the result
+    # is the "uncategorized" fallback.
+    fell_back: bool
+
+
 # --- Summaries (public client contract, see README) ---------------------------
 
 
