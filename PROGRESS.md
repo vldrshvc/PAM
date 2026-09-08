@@ -62,7 +62,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 6 — Auth
 
-**Status:** done, awaiting owner verification
+**Status:** done, verified by owner
 
 **Delivered:** `users` table (unique username, argon2id hash). `app/security.py`: `hash_password`/`verify_password` (argon2-cffi), `create_access_token` (PyJWT HS256, `sub`=user id, `iat`, `exp`), `get_current_user` dependency (401 + `WWW-Authenticate: Bearer` for missing, malformed, wrong-signature or expired tokens, or a deleted user). `POST /register` (201; 409 on case-insensitive duplicate; username charset validated; password 8–128) seeds the user's default categories in the same transaction via `flush()`. `POST /token` is the OAuth2 password form; one error message for unknown user and wrong password. `categories` gained `user_id` and the unique constraint is now `(user_id, name)`; `expenses` gained `user_id`. Every expense, category, summary and categorize route requires a token and filters by `user.id`; another user's row is 404 (or 422 when referenced in a body), never 403, so existence is not leaked. Config: `JWT_SECRET` (min 32 chars, app refuses to start otherwise), `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` (default 30 days, since the widget has no refresh flow). Startup seeding removed.
 
@@ -71,5 +71,15 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 **Known gaps:** no token refresh or revocation (out of spec). Schema changed: `docker compose down -v` required.
 
 ## Phase 7 — Tests
+
+**Status:** done, awaiting owner verification
+
+**Delivered:** `tests/` with 76 tests, `pytest.ini`, `requirements-dev.txt`. `conftest.py` derives a test database from `DATABASE_URL` (`<name>_test`, or `TEST_DATABASE_URL`), creates it if missing, builds the schema once per session, truncates every table after each test, and overrides the `get_session` and `llm_dependency` FastAPI dependencies. `TestClient` is used without the lifespan so the main database is never touched. `FakeLLM` scripts the model's answer or raises like the real client. Coverage by file: budget maths (pure, 9), categorization (pure parsing/matching/fallback plus the endpoint with the fake, 30), auth (12), expenses (11), categories (9), summaries (7).
+
+**Verified:** full suite green in ~11s against a real Postgres 16. Main `finance` database untouched after a run (row counts unchanged), `finance_test` created automatically and emptied at session end. Three deliberate mutations each failed the expected test: counting unbudgeted spend against the budget, fuzzy-matching an invented category, and removing the user check on expense lookup.
+
+**Known gaps:** no CI config (out of scope unless asked). One DeprecationWarning from Starlette's own TestClient, not from app code.
+
+## Phase 8 — Packaging & deploy
 
 **Status:** not started
