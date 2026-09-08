@@ -9,7 +9,9 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-engine = create_engine(settings.database_url)
+# pool_pre_ping: test a pooled connection before reusing it, so a Postgres
+# restart (docker compose down/up) costs one reconnect, not a 500.
+engine = create_engine(settings.database_url, pool_pre_ping=True)
 
 
 def wait_for_db(timeout_seconds: float = settings.db_startup_timeout_seconds) -> None:
