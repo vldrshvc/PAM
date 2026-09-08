@@ -12,6 +12,32 @@ class ExpenseStatus(str, Enum):
     CONFIRMED = "confirmed"
 
 
+class CategoryBase(SQLModel):
+    name: str = Field(min_length=1, max_length=50)
+    # None means "no budget for this category".
+    monthly_limit: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be blank")
+        return stripped
+
+    @field_validator("monthly_limit")
+    @classmethod
+    def _normalize_limit(cls, value: Decimal | None) -> Decimal | None:
+        return None if value is None else value.quantize(Decimal("0.01"))
+
+
+class Category(CategoryBase, table=True):
+    __tablename__ = "categories"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(min_length=1, max_length=50, unique=True, index=True)
+
+
 class ExpenseBase(SQLModel):
     # Decimal, not float: money must round-trip exactly. Two decimal places
     # matches cents; ten digits total caps a single expense at 99,999,999.99.
@@ -32,6 +58,7 @@ class Expense(ExpenseBase, table=True):
     __tablename__ = "expenses"
 
     id: int | None = Field(default=None, primary_key=True)
+    category_id: int = Field(foreign_key="categories.id", index=True)
     # values_callable: store "confirmed" in Postgres, not the member name
     # "CONFIRMED", so the column reads the same as the API.
     status: ExpenseStatus = Field(

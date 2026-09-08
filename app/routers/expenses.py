@@ -2,15 +2,30 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Expense
+from app.models import Category, Expense
 from app.schemas import ExpenseCreate, ExpenseRead
+from app.services.categories import get_uncategorized
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 
+def resolve_category_id(session: Session, category_id: int | None) -> int:
+    if category_id is None:
+        return get_uncategorized(session).id
+    if session.get(Category, category_id) is None:
+        # 422 rather than 404: the URL resource exists, the body is what's wrong.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Category {category_id} does not exist",
+        )
+    return category_id
+
+
 @router.post("", response_model=ExpenseRead, status_code=status.HTTP_201_CREATED)
 def create_expense(body: ExpenseCreate, session: Session = Depends(get_session)) -> Expense:
-    expense = Expense.model_validate(body)
+    expense = Expense.model_validate(
+        body, update={"category_id": resolve_category_id(session, body.category_id)}
+    )
     session.add(expense)
     session.commit()
     session.refresh(expense)
