@@ -7,8 +7,9 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Category, Expense, ExpenseStatus
+from app.models import Category, Expense, ExpenseStatus, User
 from app.schemas import CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead
+from app.security import get_current_user
 from app.services.budget import ZERO, budget_totals, month_bounds, today_in
 
 router = APIRouter(prefix="/summary", tags=["summary"])
@@ -29,44 +30,52 @@ def parse_timezone(name: str) -> ZoneInfo:
         )
 
 
-def spent_by_category(session: Session, start: date, end: date) -> dict[int, Decimal]:
-    """One GROUP BY over confirmed expenses in [start, end]."""
+def spent_by_category(session: Session, user_id: int, start: date, end: date) -> dict[int, Decimal]:
+    """One GROUP BY over the user's confirmed expenses in [start, end]."""
     statement = (
         select(Expense.category_id, func.sum(Expense.price))
-        .where(Expense.date >= start, Expense.date <= end)
+        .where(Expense.user_id == user_id, Expense.date >= start, Expense.date <= end)
         .where(Expense.status == ExpenseStatus.CONFIRMED)
         .group_by(Expense.category_id)
     )
     return {category_id: total for category_id, total in session.exec(statement).all()}
 
 
-def spent_total(session: Session, start: date, end: date) -> Decimal:
+def spent_total(session: Session, user_id: int, start: date, end: date) -> Decimal:
     statement = (
         select(func.coalesce(func.sum(Expense.price), 0))
-        .where(Expense.date >= start, Expense.date <= end)
+        .where(Expense.user_id == user_id, Expense.date >= start, Expense.date <= end)
         .where(Expense.status == ExpenseStatus.CONFIRMED)
     )
     return Decimal(session.exec(statement).one()).quantize(ZERO)
 
 
-def all_categories(session: Session) -> list[Category]:
-    return list(session.exec(select(Category).order_by(Category.id)).all())
+def user_categories(session: Session, user_id: int) -> list[Category]:
+    statement = select(Category).where(Category.user_id == user_id).order_by(Category.id)
+    return list(session.exec(statement).all())
 
 
 @router.get("/daily", response_model=DailySummaryRead)
-def daily_summary(tz: str = TzQuery, session: Session = Depends(get_session)) -> DailySummaryRead:
+def daily_summary(
+    tz: str = TzQuery,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> DailySummaryRead:
     zone = parse_timezone(tz)
     today = today_in(zone)
     month_start, month_end = month_bounds(today.year, today.month)
 
-    totals = budget_totals(all_categories(session), spent_by_category(session, month_start, month_end))
+    totals = budget_totals(
+        user_categories(session, user.id),
+        spent_by_category(session, user.id, month_start, month_end),
+    )
     # The widget wants at-a-glance state, so only budgeted categories are
     # listed; the monthly endpoint has the full breakdown.
     budgeted = [c for c in totals.categories if c.monthly_limit is not None]
     return DailySummaryRead(
         date=today,
         timezone=zone.key,
-        spent_today=spent_total(session, today, today),
+        spent_today=spent_total(session, user.id, today, today),
         spent_this_month=totals.spent_total,
         budget_total=totals.budget_total,
         remaining_total=totals.remaining_total,
@@ -80,6 +89,7 @@ def monthly_summary(
     month: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="YYYY-MM; defaults to the current month in tz"),
     tz: str = TzQuery,
     session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
 ) -> MonthlySummaryRead:
     zone = parse_timezone(tz)
     if month is None:
@@ -89,7 +99,9 @@ def monthly_summary(
         year, month_number = (int(part) for part in month.split("-"))
     start, end = month_bounds(year, month_number)
 
-    totals = budget_totals(all_categories(session), spent_by_category(session, start, end))
+    totals = budget_totals(
+        user_categories(session, user.id), spent_by_category(session, user.id, start, end)
+    )
     return MonthlySummaryRead(
         month=f"{year:04d}-{month_number:02d}",
         timezone=zone.key,

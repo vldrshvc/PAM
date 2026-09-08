@@ -52,7 +52,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 5 — LLM categorization
 
-**Status:** done, awaiting owner verification (live Groq call not possible from the build sandbox)
+**Status:** done, verified by owner
 
 **Delivered:** `app/llm.py` wraps one OpenAI-compatible chat call (`temperature=0`, `max_tokens=30`, one retry, configurable timeout) and translates SDK exceptions into `LLMUnavailableError`; a missing key raises `LLMNotConfiguredError`. `app/services/categorization.py` is pure logic: constrained system prompt, user prompt listing the live category names, `parse_amount()` (currency-adjacent number wins over a bare one, comma decimal accepted), `match_category()` (exact case-insensitive after stripping quotes/periods, no fuzzy matching), and `categorize()` which falls back to `uncategorized` whenever the answer does not match. `POST /categorize` returns `{category, amount, fell_back}`; it never writes anything. Errors: 503 when `LLM_API_KEY` is unset, 502 when the provider fails or times out, 422 on blank text. Config: `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TIMEOUT_SECONDS`.
 
@@ -61,5 +61,15 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 **Known gaps:** not yet run against real Groq; owner to verify with a real key. Categorization is stateless: the client still has to POST /expenses with the returned category_id.
 
 ## Phase 6 — Auth
+
+**Status:** done, awaiting owner verification
+
+**Delivered:** `users` table (unique username, argon2id hash). `app/security.py`: `hash_password`/`verify_password` (argon2-cffi), `create_access_token` (PyJWT HS256, `sub`=user id, `iat`, `exp`), `get_current_user` dependency (401 + `WWW-Authenticate: Bearer` for missing, malformed, wrong-signature or expired tokens, or a deleted user). `POST /register` (201; 409 on case-insensitive duplicate; username charset validated; password 8–128) seeds the user's default categories in the same transaction via `flush()`. `POST /token` is the OAuth2 password form; one error message for unknown user and wrong password. `categories` gained `user_id` and the unique constraint is now `(user_id, name)`; `expenses` gained `user_id`. Every expense, category, summary and categorize route requires a token and filters by `user.id`; another user's row is 404 (or 422 when referenced in a body), never 403, so existence is not leaked. Config: `JWT_SECRET` (min 32 chars, app refuses to start otherwise), `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES` (default 30 days, since the widget has no refresh flow). Startup seeding removed.
+
+**Verified:** schema via psql (argon2id hashes stored, `$argon2id$v=19$m=65536,t=3,p=4`; unique `(user_id, name)`; FKs). Register: 201, duplicate `Vlad` 409, short password 422, `bob smith` 422. Token: wrong password 401, unknown user 401 with identical message. Protected routes: no token 401 with `WWW-Authenticate`, garbage 401, expired 401, wrong-secret 401. Two users each get 8 seeded categories with distinct ids. Cross-user: creating an expense in another user's category 422; GET/PATCH/DELETE another user's expense 404; DELETE another user's category 404; both users can own a "Coffee". Summaries and `/categorize` return only the caller's data. `/health` remains public. Weak `JWT_SECRET` fails at import with a clear validation error. App log contains no passwords.
+
+**Known gaps:** no token refresh or revocation (out of spec). Schema changed: `docker compose down -v` required.
+
+## Phase 7 — Tests
 
 **Status:** not started

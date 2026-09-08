@@ -20,26 +20,25 @@ DEFAULT_CATEGORY_NAMES: tuple[str, ...] = (
 )
 
 
-def seed_default_categories(session: Session) -> None:
-    """Insert any default category that does not exist yet. Safe to run on
-    every startup; never touches categories the user already has."""
-    existing = set(session.exec(select(Category.name)).all())
+def seed_default_categories(session: Session, user_id: int) -> None:
+    """Give a new user the default set. Does not commit: registration
+    commits the user and their categories together."""
     for name in DEFAULT_CATEGORY_NAMES:
-        if name not in existing:
-            session.add(Category(name=name))
-    session.commit()
+        session.add(Category(name=name, user_id=user_id))
 
 
-def get_uncategorized(session: Session) -> Category:
-    category = find_by_name(session, UNCATEGORIZED_NAME)
+def get_uncategorized(session: Session, user_id: int) -> Category:
+    category = find_by_name(session, user_id, UNCATEGORIZED_NAME)
     if category is None:
-        # Seeding runs at startup, so this is a deployment bug, not user input.
-        raise RuntimeError(f'reserved category "{UNCATEGORIZED_NAME}" is missing')
+        # Seeded at registration, so this is a data bug, not user input.
+        raise RuntimeError(f'reserved category "{UNCATEGORIZED_NAME}" is missing for user {user_id}')
     return category
 
 
-def find_by_name(session: Session, name: str) -> Category | None:
+def find_by_name(session: Session, user_id: int, name: str) -> Category | None:
     # Case-insensitive so "groceries" and "Groceries" cannot coexist; the
-    # LLM categorizer later matches names the same way.
-    statement = select(Category).where(func.lower(Category.name) == name.lower())
+    # LLM categorizer matches names the same way.
+    statement = select(Category).where(
+        Category.user_id == user_id, func.lower(Category.name) == name.lower()
+    )
     return session.exec(statement).first()

@@ -1,4 +1,5 @@
 import datetime as dt
+import re
 from decimal import Decimal
 from typing import Literal
 
@@ -8,8 +9,37 @@ from sqlmodel import Field, SQLModel
 from app.models import CategoryBase, ExpenseBase, ExpenseStatus, quantize_money
 
 
+USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
+
+
 class HealthRead(SQLModel):
     status: Literal["ok"]
+
+
+# --- Auth ---------------------------------------------------------------------
+
+
+class UserCreate(SQLModel):
+    username: str = Field(min_length=3, max_length=50)
+    # argon2 has no 72-byte limit, so only a floor and a sanity ceiling.
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def _username_charset(cls, value: str) -> str:
+        if not USERNAME_PATTERN.fullmatch(value):
+            raise ValueError("username may contain only letters, digits, '.', '_' and '-'")
+        return value
+
+
+class UserRead(SQLModel):
+    id: int
+    username: str
+
+
+class TokenRead(SQLModel):
+    access_token: str
+    token_type: Literal["bearer"]
 
 
 # --- Categories ---------------------------------------------------------------

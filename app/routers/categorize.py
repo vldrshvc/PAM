@@ -3,8 +3,9 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.llm import LLMClient, LLMNotConfiguredError, LLMUnavailableError, get_llm_client
-from app.models import Category
+from app.models import Category, User
 from app.schemas import CategorizeRequest, CategorizeResponse, CategoryRead
+from app.security import get_current_user
 from app.services.categorization import categorize
 
 router = APIRouter(tags=["categorization"])
@@ -23,8 +24,10 @@ def categorize_expense(
     body: CategorizeRequest,
     session: Session = Depends(get_session),
     llm: LLMClient = Depends(llm_dependency),
+    user: User = Depends(get_current_user),
 ) -> CategorizeResponse:
-    categories = list(session.exec(select(Category).order_by(Category.id)).all())
+    statement = select(Category).where(Category.user_id == user.id).order_by(Category.id)
+    categories = list(session.exec(statement).all())
     try:
         result = categorize(body.text, categories, llm)
     except LLMUnavailableError as exc:
