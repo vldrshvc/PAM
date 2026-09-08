@@ -6,6 +6,14 @@ from pydantic import field_validator
 from sqlalchemy import Column, Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
+CENTS = Decimal("0.01")
+
+
+def quantize_money(value: Decimal) -> Decimal:
+    # JSON numbers drop trailing zeros (12.40 -> 12.4); quantize so the
+    # API always renders exactly two decimal places.
+    return value.quantize(CENTS)
+
 
 class ExpenseStatus(str, Enum):
     PENDING = "pending"
@@ -28,7 +36,7 @@ class CategoryBase(SQLModel):
     @field_validator("monthly_limit")
     @classmethod
     def _normalize_limit(cls, value: Decimal | None) -> Decimal | None:
-        return None if value is None else value.quantize(Decimal("0.01"))
+        return None if value is None else quantize_money(value)
 
 
 class Category(CategoryBase, table=True):
@@ -49,9 +57,7 @@ class ExpenseBase(SQLModel):
     @field_validator("price")
     @classmethod
     def _normalize_price(cls, value: Decimal) -> Decimal:
-        # JSON numbers drop trailing zeros (12.40 -> 12.4); quantize so the
-        # API always renders exactly two decimal places.
-        return value.quantize(Decimal("0.01"))
+        return quantize_money(value)
 
 
 class Expense(ExpenseBase, table=True):
