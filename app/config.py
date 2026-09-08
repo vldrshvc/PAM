@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +11,16 @@ class Settings(BaseSettings):
     database_url: str
     # How long startup will keep retrying the database before giving up.
     db_startup_timeout_seconds: float = 30.0
+
+    @field_validator("database_url")
+    @classmethod
+    def _use_psycopg2_driver(cls, value: str) -> str:
+        # Hosted Postgres (Koyeb, Heroku-style) hands out postgres:// URLs;
+        # SQLAlchemy needs the dialect+driver form.
+        for prefix in ("postgres://", "postgresql://"):
+            if value.startswith(prefix):
+                return "postgresql+psycopg2://" + value[len(prefix):]
+        return value
 
     # Auth. The secret signs every access token; rotating it logs everyone out.
     # 32 bytes is the HMAC-SHA256 floor (RFC 7518); refuse to start with less.

@@ -16,6 +16,27 @@ services:
       timeout: 3s
       retries: 10
 
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Inside the compose network Postgres is "db", not localhost. This
+      # overrides the DATABASE_URL from .env, which is for running uvicorn
+      # on the host.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
 volumes:
   # Named volume: data lives outside the container and survives
   # `docker compose down` / `up`. Only `down -v` deletes it.

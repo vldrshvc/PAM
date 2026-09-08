@@ -72,7 +72,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 7 — Tests
 
-**Status:** done, awaiting owner verification
+**Status:** done, verified by owner
 
 **Delivered:** `tests/` with 76 tests, `pytest.ini`, `requirements-dev.txt`. `conftest.py` derives a test database from `DATABASE_URL` (`<name>_test`, or `TEST_DATABASE_URL`), creates it if missing, builds the schema once per session, truncates every table after each test, and overrides the `get_session` and `llm_dependency` FastAPI dependencies. `TestClient` is used without the lifespan so the main database is never touched. `FakeLLM` scripts the model's answer or raises like the real client. Coverage by file: budget maths (pure, 9), categorization (pure parsing/matching/fallback plus the endpoint with the fake, 28), auth (12), expenses (11), categories (9), summaries (7).
 
@@ -82,4 +82,10 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 8 — Packaging & deploy
 
-**Status:** not started
+**Status:** code done, awaiting owner: image build, compose up, Koyeb deploy
+
+**Delivered:** `Dockerfile` (python:3.12-slim, dependency layer first, non-root user, `PORT` env with 8000 default), `.dockerignore`, `api` service in compose (builds the image, waits for `db` healthy, `DATABASE_URL` built from the `POSTGRES_*` vars so it points at `db` inside the network, healthcheck on `/health`). `Settings` normalizes `postgres://` / `postgresql://` to the psycopg2 dialect so a hosted connection string works unchanged. README rewritten for a hiring manager: stack, one-command run, example requests, API table, architecture with the decisions that matter, widget contract, tests, configuration, Koyeb deploy steps, v2 roadmap.
+
+**Verified:** `docker compose config` valid with both services and the composed `DATABASE_URL`; URL normalization checked for `postgres://...?sslmode=require` and pass-through; the container's exact start command run outside Docker with `PORT=8123` serves `/health`; test suite green. Image build and `docker compose up --build` NOT run in the build sandbox (registry blob downloads blocked); owner verifies.
+
+**Known gaps:** no screenshots yet (add `/docs` and the widget once deployed). Public URL to be filled in after the Koyeb deploy. No CI config (out of scope).
