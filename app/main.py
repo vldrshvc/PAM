@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,6 +9,11 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import create_tables, wait_for_db
 from app.routers import auth, categories, categorize, expenses, health, summary
+
+
+# Uvicorn configures only its own loggers; give the app's loggers a
+# handler so lines like the per-call LLM record reach the server log.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s: %(message)s")
 
 
 @asynccontextmanager

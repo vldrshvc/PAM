@@ -5,10 +5,15 @@ provider quirk and SDK exception stays in here so the rest of the app only
 ever sees LLMUnavailableError or a string.
 """
 
+import logging
+import time
+
 import openai
 from openai import OpenAI
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMNotConfiguredError(RuntimeError):
@@ -27,6 +32,7 @@ class LLMClient:
         self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=1)
 
     def complete(self, system: str, user: str, max_tokens: int = 30) -> str:
+        started = time.monotonic()
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
@@ -43,8 +49,20 @@ class LLMClient:
             raise LLMUnavailableError("Could not connect to LLM provider") from exc
         except openai.APIStatusError as exc:
             raise LLMUnavailableError(f"LLM provider returned HTTP {exc.status_code}") from exc
-        content = response.choices[0].message.content if response.choices else None
-        return content or ""
+        choice = response.choices[0] if response.choices else None
+        content = (choice.message.content if choice else None) or ""
+        usage = response.usage
+        # One line per call so provider behaviour (latency, truncation,
+        # hidden reasoning tokens) is visible in the server log.
+        logger.info(
+            "llm model=%s latency=%.2fs finish=%s completion_tokens=%s answer=%r",
+            self._model,
+            time.monotonic() - started,
+            choice.finish_reason if choice else None,
+            usage.completion_tokens if usage else None,
+            content[:60],
+        )
+        return content
 
 
 def get_llm_client() -> LLMClient:
