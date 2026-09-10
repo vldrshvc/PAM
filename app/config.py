@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def _use_psycopg2_driver(cls, value: str) -> str:
-        # Hosted Postgres (Koyeb, Heroku-style) hands out postgres:// URLs;
+        # Hosted Postgres (Neon, Heroku-style) hands out postgres:// URLs;
         # SQLAlchemy needs the dialect+driver form.
         for prefix in ("postgres://", "postgresql://"):
             if value.startswith(prefix):
