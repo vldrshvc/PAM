@@ -4,6 +4,8 @@ Self-hosted expense tracker with an API-first backend, LLM-based expense categor
 
 Type "SuperValu €12.40", get back `Groceries` and `12.40`. Set a monthly limit per category and the daily summary tells you what you spent today and what's left this month.
 
+**Live:** https://pam-u8qh.onrender.com/docs (free tier: the first request after 15 idle minutes takes about a minute to wake).
+
 ## Stack
 
 | Layer | Choice | Why |
@@ -185,7 +187,7 @@ The container runs on Render's free web service; the database is a free Neon Pos
 1. **Database.** https://neon.tech → New project → copy the connection string (`postgresql://...?sslmode=require...`). The app accepts it unchanged.
 2. **Service.** https://dashboard.render.com → New → Web Service → connect this GitHub repo, branch `main`. Language: **Docker**. Instance type: **Free**. Health check path: `/health`.
 3. **Environment variables.** `DATABASE_URL` (from step 1), `JWT_SECRET` (fresh 32+ chars), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
-4. Deploy. When the health check is green, `https://<app>.onrender.com/docs` is live and the widget points at `https://<app>.onrender.com/summary/daily?tz=Europe/Dublin`.
+4. Deploy. When the health check is green, `https://<app>.onrender.com/docs` is live (this project: https://pam-u8qh.onrender.com/docs) and the widget points at `https://<app>.onrender.com/summary/daily?tz=Europe/Dublin`.
 
 The container is the same image compose builds locally. Render injects `PORT`; the start command already reads it.
 
