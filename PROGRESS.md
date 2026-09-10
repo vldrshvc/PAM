@@ -128,7 +128,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 **Status:** done, awaiting owner verification (sync + deploy; nothing to run on Neon)
 
-**Delivered:** Alembic (`alembic.ini`, `migrations/env.py` bound to `SQLModel.metadata` and the app's `DATABASE_URL`). Baseline revision `05abbea478d2` recreates the pre-migration schema, and is a no-op on a database that already has it, so existing deployments are stamped without touching data. `app/database.py`: `alembic_config()` and `run_migrations()`; the lifespan runs `upgrade head` instead of `create_all`. Dockerfile copies `alembic.ini` and `alembic/`. Two tests: migrations applied to an empty database produce a schema with zero autogenerate diff against the models; the baseline preserves rows on a create_all database.
+**Delivered:** Alembic (`alembic.ini`, `migrations/env.py` bound to `SQLModel.metadata` and the app's `DATABASE_URL`). Baseline revision `05abbea478d2` recreates the pre-migration schema, and is a no-op on a database that already has it, so existing deployments are stamped without touching data. `app/database.py`: `alembic_config()` and `run_migrations()`; the lifespan runs `upgrade head` instead of `create_all`. Dockerfile copies `alembic.ini` and `migrations/`. Two tests: migrations applied to an empty database produce a schema with zero autogenerate diff against the models; the baseline preserves rows on a create_all database.
 
 **Verified:** app started against the local create_all database with data: revision stamped, rows intact. Fresh database: tables created by the migration, register returns 201. `alembic current` = head, `alembic check` clean. Suite green (91).
 

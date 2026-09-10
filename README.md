@@ -186,7 +186,7 @@ Schema is versioned with Alembic. The app applies pending migrations when it sta
 # 1. edit app/models.py
 # 2. generate the migration from the diff between models and your database
 alembic revision --autogenerate -m "add accounts"
-# 3. read the generated file in alembic/versions/, then apply it
+# 3. read the generated file in migrations/versions/, then apply it
 alembic upgrade head
 ```
 
