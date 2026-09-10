@@ -178,14 +178,16 @@ pytest
 
 Secrets live in `.env`, which is git-ignored. `.env.example` documents every variable with placeholders.
 
-## Deploy on Koyeb (free tier)
+## Deploy for free (Render + Neon)
 
-1. **Database.** Koyeb → Create → Database → PostgreSQL, free plan. Copy the connection string (`postgres://...?sslmode=require`). The app accepts it as-is.
-2. **Service.** Create → Web Service → GitHub → this repo, branch `main`. Builder: Dockerfile. Instance: Free. Port: `8000`. Health check path: `/health`.
-3. **Environment variables.** `DATABASE_URL` (from step 1, mark as secret), `JWT_SECRET` (secret), `LLM_API_KEY` (secret), `LLM_BASE_URL`, `LLM_MODEL`.
-4. Deploy. When the health check goes green, `https://<app>.koyeb.app/docs` is live and the widget points at `https://<app>.koyeb.app/summary/daily?tz=Europe/Dublin`.
+The container runs on Render's free web service; the database is a free Neon Postgres, because Render's own free Postgres is deleted after 30 days. Neither needs a card. Render sleeps the service after 15 minutes idle and wakes it on the next request in about a minute.
 
-The container is the same image compose builds locally; only `DATABASE_URL` and `PORT` differ.
+1. **Database.** https://neon.tech → New project → copy the connection string (`postgresql://...?sslmode=require...`). The app accepts it unchanged.
+2. **Service.** https://dashboard.render.com → New → Web Service → connect this GitHub repo, branch `main`. Language: **Docker**. Instance type: **Free**. Health check path: `/health`.
+3. **Environment variables.** `DATABASE_URL` (from step 1), `JWT_SECRET` (fresh 32+ chars), `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`.
+4. Deploy. When the health check is green, `https://<app>.onrender.com/docs` is live and the widget points at `https://<app>.onrender.com/summary/daily?tz=Europe/Dublin`.
+
+The container is the same image compose builds locally. Render injects `PORT`; the start command already reads it.
 
 ## Roadmap (v2)
 

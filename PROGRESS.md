@@ -82,10 +82,10 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 8 — Packaging & deploy
 
-**Status:** code done, awaiting owner: image build, compose up, Koyeb deploy
+**Status:** image build and `docker compose up --build` verified by owner; deploy pending (Koyeb closed to new users after the Mistral acquisition; switched to Render + Neon)
 
-**Delivered:** `Dockerfile` (python:3.12-slim, dependency layer first, non-root user, `PORT` env with 8000 default), `.dockerignore`, `api` service in compose (builds the image, waits for `db` healthy, `DATABASE_URL` built from the `POSTGRES_*` vars so it points at `db` inside the network, healthcheck on `/health`). `Settings` normalizes `postgres://` / `postgresql://` to the psycopg2 dialect so a hosted connection string works unchanged. README rewritten for a hiring manager: stack, one-command run, example requests, API table, architecture with the decisions that matter, widget contract, tests, configuration, Koyeb deploy steps, v2 roadmap.
+**Delivered:** `Dockerfile` (python:3.12-slim, dependency layer first, non-root user, `PORT` env with 8000 default), `.dockerignore`, `api` service in compose (builds the image, waits for `db` healthy, `DATABASE_URL` built from the `POSTGRES_*` vars so it points at `db` inside the network, healthcheck on `/health`). `Settings` normalizes `postgres://` / `postgresql://` to the psycopg2 dialect so a hosted connection string works unchanged. README rewritten for a hiring manager: stack, one-command run, example requests, API table, architecture with the decisions that matter, widget contract, tests, configuration, Render + Neon deploy steps, v2 roadmap.
 
 **Verified:** `docker compose config` valid with both services and the composed `DATABASE_URL`; URL normalization checked for `postgres://...?sslmode=require` and pass-through; the container's exact start command run outside Docker with `PORT=8123` serves `/health`; test suite green. Image build and `docker compose up --build` NOT run in the build sandbox (registry blob downloads blocked); owner verifies.
 
-**Known gaps:** no screenshots yet (add `/docs` and the widget once deployed). Public URL to be filled in after the Koyeb deploy. No CI config (out of scope).
+**Known gaps:** no screenshots yet (add `/docs` and the widget once deployed). Public URL to be filled in after the Render deploy. No CI config (out of scope).
