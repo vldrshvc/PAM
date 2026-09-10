@@ -22,7 +22,7 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move
 | Auth | OAuth2 password flow, JWT (HS256), argon2id hashes | Standard flow, works with the Swagger "Authorize" button |
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
-| Tests | pytest, 124 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 127 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -81,6 +81,15 @@ curl -H "$AUTH" "localhost:8000/summary/daily?tz=Europe/Dublin"
 
 Install on Android: open the URL in Chrome → menu → **Add to Home screen**. The manifest sets `display: standalone`, so it opens full-screen without browser chrome.
 
+## Android app and widget
+
+`android/` is a small native project (Kotlin, Gradle) that ships as one APK:
+
+- **App**: the web client above inside a Trusted Web Activity, so it opens full screen from the launcher with no browser UI and no duplicated code. Chrome trusts it because the backend serves `/.well-known/assetlinks.json` (set `ANDROID_CERT_FINGERPRINTS`).
+- **Widget**: a Glance home-screen widget that logs in once, stores the token encrypted, polls `GET /summary/daily` every 30 minutes via WorkManager, and renders balance, today's spend and earnings, budget left and the first target's per-day figure. It never computes money: the summary endpoint is the contract.
+
+Build and install steps are in [android/README.md](android/README.md).
+
 ## API
 
 All routes except `/health`, `/register` and `/token` require `Authorization: Bearer <token>` and only ever return the caller's own data.
@@ -101,6 +110,7 @@ All routes except `/health`, `/register` and `/token` require `Authorization: Be
 | GET, POST | `/targets` | Balance targets with live progress: `remaining`, `days_left`, `required_per_day`, `expected_balance`, `projected_balance`, `projected_date`, `status` (`on_track`, `behind`, `achieved`, `expired`). `start_balance` is snapshotted at creation |
 | GET, PATCH, DELETE | `/targets/{id}` | Read with progress / change name, amount or end date / delete |
 | GET | `/me` | Profile |
+| GET | `/.well-known/assetlinks.json` | Digital Asset Links for the Android app; public; 404 until `ANDROID_CERT_FINGERPRINTS` is set |
 | GET | `/balance` | Total (`sum of opening balances + income - expenses`) plus a per-account breakdown |
 | GET, POST | `/categories` | List / create (name unique per user, case-insensitive) |
 | PATCH, DELETE | `/categories/{id}` | Set or clear `monthly_limit`, rename / delete (expenses move to `uncategorized`) |
@@ -208,7 +218,7 @@ alembic upgrade head
 pytest
 ```
 
-124 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+127 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
 
 ## Configuration
 
@@ -223,6 +233,7 @@ pytest
 | `LLM_BASE_URL`, `LLM_MODEL` | no | Default Gemini; see `.env.example` for Groq, OpenRouter, Anthropic |
 | `LLM_TIMEOUT_SECONDS` | no | Default 25. Free-tier providers can be slow; the SDK retries once, so the worst case is double this |
 | `DB_STARTUP_TIMEOUT_SECONDS` | no | Default 30 |
+| `ANDROID_PACKAGE_NAME`, `ANDROID_CERT_FINGERPRINTS` | no | Enable `/.well-known/assetlinks.json` for the Android app |
 | `PORT` | no | Container listen port, default 8000; PaaS hosts set it |
 
 Secrets live in `.env`, which is git-ignored. `.env.example` documents every variable with placeholders.
@@ -242,4 +253,4 @@ The container is the same image compose builds locally. Render injects `PORT`; t
 
 - **Auto-ingestion**: Revolut transactions arrive as `status: pending` expenses. The status column and the exclusion of pending rows from totals are already in place.
 - **Confirm-and-describe**: push notification to the phone; user confirms, picks a category, adds a description.
-- **Widget**: a native Android home-screen widget (Kotlin/Glance) that only ever calls `/summary/daily`.
+- **Push confirm**: server-initiated notification when a pending expense arrives.

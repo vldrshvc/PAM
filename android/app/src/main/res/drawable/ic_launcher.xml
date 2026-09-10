@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#1F6F5F"
+        android:pathData="M24,0h60a24,24 0 0 1 24,24v60a24,24 0 0 1 -24,24H24A24,24 0 0 1 0,84V24A24,24 0 0 1 24,0z" />
+    <!-- A euro sign drawn as strokes: C-curve plus two bars. -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M72,34 A24,24 0 1 0 72,74" />
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M30,47 L66,47 M30,61 L66,61" />
+</vector>

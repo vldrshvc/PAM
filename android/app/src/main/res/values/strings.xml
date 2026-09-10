@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PAM</string>
+    <string name="widget_label">PAM balance</string>
+    <string name="widget_description">Balance, today\'s spend and your target pace.</string>
+    <string name="widget_setup_title">Connect the widget</string>
+    <string name="server_url">Server URL</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Connecting…</string>
+    <string name="login_failed">Login failed: %1$s</string>
+    <!-- Must match the site the TWA opens; the server publishes the matching assetlinks.json. -->
+    <string name="asset_statements">[{ \"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": { \"namespace\": \"web\", \"site\": \"https://pam-u8qh.onrender.com\" } }]</string>
+</resources>

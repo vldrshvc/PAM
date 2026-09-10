@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import run_migrations, wait_for_db
-from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, summary, targets, transfers
+from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, summary, targets, transfers, wellknown
 
 
 # Uvicorn configures only its own loggers; give the app's loggers a
@@ -31,6 +31,7 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(wellknown.router)
 app.include_router(auth.router)
 app.include_router(account.router)
 app.include_router(expenses.router)

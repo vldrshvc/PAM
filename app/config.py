@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # Long by default because the widget holds one token and has no refresh flow.
     access_token_expire_minutes: int = 43_200  # 30 days
 
+    # Digital Asset Links for the Android app. Chrome hides its UI in the
+    # Trusted Web Activity only if /.well-known/assetlinks.json names the
+    # app's package and signing certificate. Empty fingerprints = no file.
+    android_package_name: str = "ie.yarodev.pam"
+    android_cert_fingerprints: str = ""
+
     # LLM categorization. Any OpenAI-compatible chat endpoint works; Google's
     # Gemini free tier is the default. Leaving the key unset disables
     # /categorize only.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Pam" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/pam_green</item>
+        <item name="colorPrimaryVariant">@color/pam_green</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">@color/pam_green</item>
+        <item name="android:statusBarColor">@color/pam_green</item>
+    </style>
+
+    <!-- Translucent so nothing flashes before Chrome takes over the screen. -->
+    <style name="Theme.Pam.Launcher" parent="Theme.Pam">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

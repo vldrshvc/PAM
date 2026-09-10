@@ -110,9 +110,15 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 **Known gaps:** no service worker, so no offline mode (the app needs the API anyway). Limit editing uses a browser `prompt()`; fine on mobile, not pretty.
 
-## Phase 11b — Android home-screen widget
+## Phase 11b — Android app and widget
 
-**Status:** not started. Native widget-only project (Kotlin + Glance) polling `GET /summary/daily`.
+**Status:** code written, awaiting owner build (no Android SDK in the build sandbox; Google's Maven is blocked there)
+
+**Delivered:** `android/` Gradle project (AGP 8.9.2, Gradle 8.11.1 wrapper, Kotlin 2.1.21, minSdk 26, compileSdk 35). The app is a Trusted Web Activity: `com.google.androidbrowserhelper.trusted.LauncherActivity` declared in the manifest with the server URL as metadata, translucent theme, asset statement pointing at the site. The widget is Kotlin + Glance 1.1.1: `Api` (HttpURLConnection, `/token` and `/summary/daily`), `Store` (EncryptedSharedPreferences for token, cached summary, last error), `RefreshWorker` (WorkManager, periodic 30 min + one-shot after login, clears the token on 401), `PamWidget` (balance, spent/earned today, budget left, first target's per-day line, updated time, tap opens the app or the login), `PamWidgetReceiver` (schedules/cancels work), `WidgetConfigActivity` (login dialog on placement). Backend: `/.well-known/assetlinks.json` served from `ANDROID_PACKAGE_NAME` + `ANDROID_CERT_FINGERPRINTS` (404 until set), 3 tests. `android/README.md` covers install, USB debugging, the keytool fingerprint step and layout.
+
+**Verified:** XML resources well-formed, asset statement JSON valid, wrapper generated, backend route tested. Kotlin NOT compiled here; owner builds in Android Studio and reports errors.
+
+**Known gaps:** widget shows only the first target. No adaptive launcher icon (plain vector). Release signing not set up (debug builds only).
 
 ## Phase 12 — Income & balance
 

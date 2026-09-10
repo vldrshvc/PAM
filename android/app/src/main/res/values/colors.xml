@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pam_green">#1F6F5F</color>
+    <color name="pam_ink">#1B1F1E</color>
+    <color name="pam_muted">#6B7371</color>
+    <color name="pam_danger">#B8322F</color>
+    <color name="pam_card">#FFFFFF</color>
+</resources>
