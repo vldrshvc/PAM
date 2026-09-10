@@ -10,6 +10,16 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 - Categories are per user: a seeded default set plus the user's own custom ones.
 - LLM provider is a config choice, not a code choice. The categorizer talks to any OpenAI-compatible chat endpoint via the `openai` client; Google Gemini's free tier (Flash) is the default after Groq signup failed for the owner. Groq, OpenRouter or Anthropic work by changing `LLM_BASE_URL`/`LLM_MODEL`. Owner's decision, replacing the spec's Anthropic-only wording.
 
+## Definition of done (spec §8)
+
+- [x] Runs from a clean clone with `docker compose up`
+- [x] Data persists across restarts (named volume; `pool_pre_ping` for reconnects)
+- [x] Core + category + budget + summary + categorization + auth endpoints
+- [x] pytest suite green (76 tests, real Postgres, LLM faked)
+- [x] Deployed to a public URL: https://pam-u8qh.onrender.com
+- [x] README with stack, setup, example requests
+- [ ] Screenshots in README
+
 ## Phase 1 — Core skeleton
 
 **Status:** done, verified by owner
@@ -82,10 +92,10 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 8 — Packaging & deploy
 
-**Status:** deployed by owner to Render (free) + Neon (free Postgres) at https://pam-u8qh.onrender.com; Koyeb was closed to new users after the Mistral acquisition. Owner to confirm `/health` and `/register` on the public URL.
+**Status:** done, verified by owner. Deployed to Render (free) + Neon (free Postgres) at https://pam-u8qh.onrender.com; `/health` and `POST /register` confirmed on the public URL. Koyeb was closed to new users after the Mistral acquisition.
 
 **Delivered:** `Dockerfile` (python:3.12-slim, dependency layer first, non-root user, `PORT` env with 8000 default), `.dockerignore`, `api` service in compose (builds the image, waits for `db` healthy, `DATABASE_URL` built from the `POSTGRES_*` vars so it points at `db` inside the network, healthcheck on `/health`). `Settings` normalizes `postgres://` / `postgresql://` to the psycopg2 dialect so a hosted connection string works unchanged. README rewritten for a hiring manager: stack, one-command run, example requests, API table, architecture with the decisions that matter, widget contract, tests, configuration, Render + Neon deploy steps, v2 roadmap.
 
 **Verified:** `docker compose config` valid with both services and the composed `DATABASE_URL`; URL normalization checked for `postgres://...?sslmode=require` and pass-through; the container's exact start command run outside Docker with `PORT=8123` serves `/health`; test suite green. Image build and `docker compose up --build` NOT run in the build sandbox (registry blob downloads blocked); owner verifies.
 
-**Known gaps:** no screenshots yet (add `/docs` and the widget once deployed). Public URL: https://pam-u8qh.onrender.com (README updated). No CI config (out of scope).
+**Known gaps:** no screenshots yet (add `/docs` and the widget). No CI config (out of scope).
