@@ -5,7 +5,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 ## Decisions (apply to all phases)
 
 - Money is `Decimal` with two places, never float. Rendered as a JSON string (`"12.40"`) so clients never touch binary floats.
-- Schema changes between phases use `SQLModel.metadata.create_all` only. When a phase changes the schema, recreate the volume (`docker compose down -v`). No Alembic.
+- Schema changes are Alembic migrations applied at startup (since phase 13a). Before that, `create_all` plus volume recreation.
 - "Today" for summaries comes from the client's timezone, sent with the request. No server-side default timezone.
 - Categories are per user: a seeded default set plus the user's own custom ones.
 - LLM provider is a config choice, not a code choice. The categorizer talks to any OpenAI-compatible chat endpoint via the `openai` client; Google Gemini's free tier (Flash) is the default after Groq signup failed for the owner. Groq, OpenRouter or Anthropic work by changing `LLM_BASE_URL`/`LLM_MODEL`. Owner's decision, replacing the spec's Anthropic-only wording.
@@ -116,10 +116,20 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 12 — Income & balance
 
-**Status:** done, awaiting owner verification (Neon schema reset required, see below)
+**Status:** done, verified by owner on Render
 
 **Delivered:** `incomes` table (amount, date, `source` enum work/friend/debt/bonus/other, description, user_id) and `users.opening_balance` (NUMERIC(12,2), may be negative). `app/services/ledger.py`: `income_total`, `expense_total` (confirmed only), `balance`. Endpoints: `POST/GET /incomes` (filters date range + source), `GET/PATCH/DELETE /incomes/{id}`, `GET/PATCH /me`, `GET /balance`. Daily summary gained `earned_today`, `earned_this_month`, `balance`; monthly gained `earned_total`, `balance` (additive, contract intact). App: Expense/Income switch on the add form, balance headline with spent/earned today, incomes in today's list, earned and net on the Month tab, opening balance under Categories. 11 new tests (89 total).
 
 **Verified:** curl against local Postgres: schema, CRUD, validation (negative, missing date, unknown source), filters, PATCH null rejection, balance 150 + 575.50 − 12.40 = 713.10, per-user isolation, 401s. Headless mobile Chromium walkthrough: add income → balance and list update, opening balance via prompt, month earned/net, delete recomputes balance. Suite green.
 
 **Known gaps / action needed:** `create_all` does not add columns to existing tables, so the deployed Neon database must be reset (drop tables) before this deploys; data there is test data. Proper migrations (Alembic) are the next infrastructure step if the data becomes real.
+
+## Phase 13a — Migrations
+
+**Status:** done, awaiting owner verification (sync + deploy; nothing to run on Neon)
+
+**Delivered:** Alembic (`alembic.ini`, `alembic/env.py` bound to `SQLModel.metadata` and the app's `DATABASE_URL`). Baseline revision `05abbea478d2` recreates the pre-migration schema, and is a no-op on a database that already has it, so existing deployments are stamped without touching data. `app/database.py`: `alembic_config()` and `run_migrations()`; the lifespan runs `upgrade head` instead of `create_all`. Dockerfile copies `alembic.ini` and `alembic/`. Two tests: migrations applied to an empty database produce a schema with zero autogenerate diff against the models; the baseline preserves rows on a create_all database.
+
+**Verified:** app started against the local create_all database with data: revision stamped, rows intact. Fresh database: tables created by the migration, register returns 201. `alembic current` = head, `alembic check` clean. Suite green (91).
+
+**Known gaps:** none. Deleting a table's enum type on downgrade is handled in the baseline; later revisions must do the same when they add enums.

@@ -1,9 +1,12 @@
 import logging
 import time
 from collections.abc import Generator
+from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy.exc import OperationalError
-from sqlmodel import Session, SQLModel, create_engine, text
+from sqlmodel import Session, create_engine, text
 
 from app.config import settings
 
@@ -38,8 +41,19 @@ def wait_for_db(timeout_seconds: float = settings.db_startup_timeout_seconds) ->
             delay = min(delay * 2, 5.0)
 
 
-def create_tables() -> None:
-    SQLModel.metadata.create_all(engine)
+def alembic_config(database_url: str = settings.database_url) -> Config:
+    root = Path(__file__).resolve().parent.parent
+    config = Config(str(root / "alembic.ini"))
+    config.set_main_option("script_location", str(root / "alembic"))
+    # "%" is the ConfigParser escape character; a password can contain one.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    return config
+
+
+def run_migrations() -> None:
+    """Bring the database to the latest revision. Replaces create_all():
+    migrations can add a column to a table that already exists."""
+    command.upgrade(alembic_config(), "head")
 
 
 def get_session() -> Generator[Session, None, None]:

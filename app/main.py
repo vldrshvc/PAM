@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.database import create_tables, wait_for_db
+from app.database import run_migrations, wait_for_db
 from app.routers import account, auth, categories, categorize, expenses, health, incomes, summary
 
 
@@ -19,14 +19,14 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s: %(m
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     wait_for_db()
-    create_tables()
+    run_migrations()
     yield
 
 
 app = FastAPI(
     title="Personal Finance Tracker",
     description="Self-hosted expense tracker with LLM categorization and a daily summary for an Android widget.",
-    version="0.8.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 

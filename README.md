@@ -18,11 +18,11 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, set 
 |---|---|---|
 | API | FastAPI, Python 3.12 | Typed request/response models, OpenAPI docs for free |
 | ORM | SQLModel (SQLAlchemy + Pydantic) | One class per table doubles as the validation schema |
-| Database | PostgreSQL 16 in Docker, psycopg2 | Named volume, data survives container recreation |
+| Database | PostgreSQL 16 in Docker, psycopg2, Alembic | Named volume; schema changes are versioned migrations run at startup |
 | Auth | OAuth2 password flow, JWT (HS256), argon2id hashes | Standard flow, works with the Swagger "Authorize" button |
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
-| Tests | pytest, 89 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 91 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -108,7 +108,7 @@ Money is always a JSON string with two decimals (`"12.40"`), backed by `NUMERIC(
 
 ```
 app/
-├── main.py            FastAPI instance, lifespan (wait for DB, create tables), router registration
+├── main.py            FastAPI instance, lifespan (wait for DB, run migrations), router registration
 ├── config.py          Settings from environment; the only module that reads os.environ
 ├── database.py        Engine, per-request Session dependency, wait_for_db() with backoff
 ├── models.py          SQLModel tables: User, Category, Expense, Income
@@ -118,6 +118,7 @@ app/
 ├── routers/           HTTP only: auth, account, expenses, incomes, categories, summary, categorize
 ├── services/          budget maths and categorization (pure, no I/O); ledger (income/expense/balance queries)
 └── static/            Mobile web client (index.html, app.js, styles.css, manifest.json)
+alembic/               Migrations; env.py points at SQLModel.metadata so autogenerate diffs the models
 tests/                 pytest; conftest creates <db>_test, truncates per test, fakes the LLM
 ```
 
@@ -131,6 +132,7 @@ A request goes router → service → session. Routers own status codes and auth
 - **Budget arithmetic only counts budgeted categories.** `remaining_total` is the sum of limits minus spending in categories that have a limit. Spending in an unbudgeted category is reported but cannot eat a budget that was never set.
 - **"Today" belongs to the client.** The widget sends its IANA timezone; the server never guesses. Totals roll over at the user's midnight, not the server's.
 - **Per-user isolation returns 404, not 403.** Another user's expense or category reads as "not found", so the API doesn't confirm that other people's data exists.
+- **Schema changes are migrations, applied on startup.** The lifespan runs `alembic upgrade head`, so a deploy that adds a column just works against a database that already has data. The first revision is a no-op on databases that predate migrations, and a test asserts that autogenerate against the migrated schema produces an empty diff, so models and migrations can't drift.
 - **Registration is one transaction.** The user row is flushed, their default categories (including the protected `uncategorized`) are inserted, then a single commit. No user can exist without a fallback category.
 
 ## Widget contract: `GET /summary/daily`
@@ -176,13 +178,27 @@ GET /summary/daily?tz=Europe/Dublin
 
 Pending (auto-ingested, unconfirmed) expenses are excluded from every total. `GET /summary/monthly` returns the same per-category shape for every category, with `remaining: null` where there is no limit, plus `earned_total` and `balance`.
 
+## Database migrations
+
+Schema is versioned with Alembic. The app applies pending migrations when it starts, so deploying is enough. To change the schema:
+
+```bash
+# 1. edit app/models.py
+# 2. generate the migration from the diff between models and your database
+alembic revision --autogenerate -m "add accounts"
+# 3. read the generated file in alembic/versions/, then apply it
+alembic upgrade head
+```
+
+`alembic check` reports whether models and migrations are in sync; the test suite asserts the same.
+
 ## Tests
 
 ```bash
 pytest
 ```
 
-89 tests in about 5 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives.
+91 tests in about 5 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, and a migration test runs every revision against an empty database and checks the result matches the models.
 
 ## Configuration
 
