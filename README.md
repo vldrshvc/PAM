@@ -118,7 +118,7 @@ app/
 ├── routers/           HTTP only: auth, account, expenses, incomes, categories, summary, categorize
 ├── services/          budget maths and categorization (pure, no I/O); ledger (income/expense/balance queries)
 └── static/            Mobile web client (index.html, app.js, styles.css, manifest.json)
-alembic/               Migrations; env.py points at SQLModel.metadata so autogenerate diffs the models
+migrations/            Alembic revisions; env.py points at SQLModel.metadata so autogenerate diffs the models
 tests/                 pytest; conftest creates <db>_test, truncates per test, fakes the LLM
 ```
 

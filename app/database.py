@@ -44,7 +44,7 @@ def wait_for_db(timeout_seconds: float = settings.db_startup_timeout_seconds) ->
 def alembic_config(database_url: str = settings.database_url) -> Config:
     root = Path(__file__).resolve().parent.parent
     config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "alembic"))
+    config.set_main_option("script_location", str(root / "migrations"))
     # "%" is the ConfigParser escape character; a password can contain one.
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     return config
