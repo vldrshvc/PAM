@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     llm_model: str = "gemini-3.5-flash"
-    llm_timeout_seconds: float = 10.0
+    llm_timeout_seconds: float = 25.0
 
 
 settings = Settings()

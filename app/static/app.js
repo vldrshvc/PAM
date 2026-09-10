@@ -249,6 +249,10 @@ async function suggest() {
   if (!text) return;
   const button = $("#suggest-btn");
   button.disabled = true;
+  button.textContent = "Thinking…";
+  note.textContent = "Asking the model, free-tier providers can take a few seconds.";
+  note.classList.remove("warn");
+  note.hidden = false;
   try {
     const result = await api("/categorize", { method: "POST", body: { text } });
     if (result.amount) $("#price").value = result.amount;
@@ -260,9 +264,12 @@ async function suggest() {
     note.classList.toggle("warn", result.fell_back);
     note.hidden = false;
   } catch (err) {
+    note.textContent = `${err.message}. Pick a category yourself or try again.`;
+    note.classList.add("warn");
     toast(err.message, true);
   } finally {
     button.disabled = false;
+    button.textContent = "Suggest";
   }
 }
 

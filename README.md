@@ -188,7 +188,7 @@ pytest
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | no | Default 43200 (30 days; the widget has no refresh flow) |
 | `LLM_API_KEY` | no | Without it `/categorize` returns 503 |
 | `LLM_BASE_URL`, `LLM_MODEL` | no | Default Gemini; see `.env.example` for Groq, OpenRouter, Anthropic |
-| `LLM_TIMEOUT_SECONDS` | no | Default 10 |
+| `LLM_TIMEOUT_SECONDS` | no | Default 25. Free-tier providers can be slow; the SDK retries once, so the worst case is double this |
 | `DB_STARTUP_TIMEOUT_SECONDS` | no | Default 30 |
 | `PORT` | no | Container listen port, default 8000; PaaS hosts set it |
 
