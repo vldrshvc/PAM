@@ -2,7 +2,7 @@
 
 Self-hosted expense tracker with an API-first backend, LLM-based expense categorization, and a daily summary endpoint built as a frozen contract for an Android home-screen widget.
 
-Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move money between your accounts, set a monthly limit per category, and the daily summary tells you your balance per account, what you spent and earned today, and what's left this month.
+Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move money between your accounts, set a monthly limit per category, set a balance target for a date and see how much per day it takes. The daily summary tells you your balance per account, what you spent and earned today, what's left this month, and where each target stands.
 
 **Live:** https://pam-u8qh.onrender.com/app/ (mobile web app) and https://pam-u8qh.onrender.com/docs (API). Free tier: the first request after 15 idle minutes takes about a minute to wake.
 
@@ -22,7 +22,7 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move
 | Auth | OAuth2 password flow, JWT (HS256), argon2id hashes | Standard flow, works with the Swagger "Authorize" button |
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
-| Tests | pytest, 107 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 124 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -77,7 +77,7 @@ curl -H "$AUTH" "localhost:8000/summary/daily?tz=Europe/Dublin"
 
 ## Mobile app
 
-`/app/` is a single-page client in `app/static/`: log in, type "SuperValu 12.40", tap Suggest, confirm the category, add. Switch to Income to record money in, or Transfer to move money between accounts. Balance and today's totals on top with a chip per account, today's list with delete, the month's spend and earnings against limits, category management, and an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
+`/app/` is a single-page client in `app/static/`: log in, type "SuperValu 12.40", tap Suggest, confirm the category, add. Switch to Income to record money in, or Transfer to move money between accounts. Balance and today's totals on top with a chip per account, today's list with delete, the month's spend and earnings against limits, category management, an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts, and targets on the Today tab: a balance to reach by a date, with the amount still needed per day recomputed from your live balance. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
 
 Install on Android: open the URL in Chrome → menu → **Add to Home screen**. The manifest sets `display: standalone`, so it opens full-screen without browser chrome.
 
@@ -98,6 +98,8 @@ All routes except `/health`, `/register` and `/token` require `Authorization: Be
 | GET, PATCH, DELETE | `/accounts/{id}` | Read with balance / update / delete (history and opening balance fold into `General`, which cannot be deleted) |
 | GET, POST | `/transfers` | Money between two of your accounts; list filters: `date_from`, `date_to`, `account_id` (either end) |
 | GET, PATCH, DELETE | `/transfers/{id}` | Read / update / delete |
+| GET, POST | `/targets` | Balance targets with live progress: `remaining`, `days_left`, `required_per_day`, `expected_balance`, `projected_balance`, `projected_date`, `status` (`on_track`, `behind`, `achieved`, `expired`). `start_balance` is snapshotted at creation |
+| GET, PATCH, DELETE | `/targets/{id}` | Read with progress / change name, amount or end date / delete |
 | GET | `/me` | Profile |
 | GET | `/balance` | Total (`sum of opening balances + income - expenses`) plus a per-account breakdown |
 | GET, POST | `/categories` | List / create (name unique per user, case-insensitive) |
@@ -115,12 +117,12 @@ app/
 ├── main.py            FastAPI instance, lifespan (wait for DB, run migrations), router registration
 ├── config.py          Settings from environment; the only module that reads os.environ
 ├── database.py        Engine, per-request Session dependency, wait_for_db() with backoff
-├── models.py          SQLModel tables: User, Account, Category, Expense, Income, Transfer
+├── models.py          SQLModel tables: User, Account, Category, Expense, Income, Transfer, Target
 ├── schemas.py         Request/response bodies, including the frozen summary shapes
 ├── security.py        argon2 hashing, JWT encode/decode, get_current_user dependency
 ├── llm.py             One chat call against an OpenAI-compatible endpoint; SDK errors → LLMUnavailableError
-├── routers/           HTTP only: auth, account, accounts, expenses, incomes, transfers, categories, summary, categorize
-├── services/          budget maths and categorization (pure, no I/O); ledger (per-account and total balance queries)
+├── routers/           HTTP only: auth, account, accounts, expenses, incomes, transfers, targets, categories, summary, categorize
+├── services/          budget, target and categorization maths (pure, no I/O); ledger (per-account and total balance queries)
 └── static/            Mobile web client (index.html, app.js, styles.css, manifest.json)
 migrations/            Alembic revisions; env.py points at SQLModel.metadata so autogenerate diffs the models
 tests/                 pytest; conftest creates <db>_test, truncates per test, fakes the LLM
@@ -138,6 +140,7 @@ A request goes router → service → session. Routers own status codes and auth
 - **Per-user isolation returns 404, not 403.** Another user's expense or category reads as "not found", so the API doesn't confirm that other people's data exists.
 - **Schema changes are migrations, applied on startup.** The lifespan runs `alembic upgrade head`, so a deploy that adds a column just works against a database that already has data. The first revision is a no-op on databases that predate migrations, and a test asserts that autogenerate against the migrated schema produces an empty diff, so models and migrations can't drift.
 - **Registration is one transaction.** The user row is flushed, their default categories (including the protected `uncategorized`) and their `General` account are inserted, then a single commit. No user can exist without a fallback category or a default account.
+- **Targets are recomputed on every read, never stored.** A target stores only the goal, the dates and the balance when it was set. `required_per_day` is what's still missing divided by the days left (today included), rounded *up* to the cent so following it never undershoots. Earn more today and tomorrow's figure drops; earn less and it rises. The pace check compares your balance to the straight line from the starting balance to the goal, and the projection extends your average daily change so far.
 - **Transfers are neither income nor expense.** They change two account balances and never the total, so spending totals stay honest when you move cash between your own cards. Deleting an account folds its opening balance and history into `General`, so a delete never changes your total either.
 
 ## Widget contract: `GET /summary/daily`
@@ -181,6 +184,7 @@ GET /summary/daily?tz=Europe/Dublin
 | `earned_this_month` | Sum of incomes in the current month. |
 | `balance` | Sum of opening balances + all income − all confirmed expenses. Transfers cancel out. |
 | `accounts` | Every account with its current balance: `{id, name, type, subtype, opening_balance, balance}`. |
+| `targets` | Every target with live progress, soonest deadline first (same shape as `GET /targets`). |
 
 Pending (auto-ingested, unconfirmed) expenses are excluded from every total. `GET /summary/monthly` returns the same per-category shape for every category, with `remaining: null` where there is no limit, plus `earned_total` and `balance`.
 
@@ -204,7 +208,7 @@ alembic upgrade head
 pytest
 ```
 
-107 tests in about 20 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+124 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
 
 ## Configuration
 

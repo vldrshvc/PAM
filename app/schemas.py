@@ -6,7 +6,8 @@ from typing import Literal
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
-from app.models import AccountBase, AccountType, CategoryBase, ExpenseBase, ExpenseStatus, IncomeBase, IncomeSource, TransferBase, quantize_money
+from app.models import AccountBase, AccountType, CategoryBase, ExpenseBase, ExpenseStatus, IncomeBase, IncomeSource, TargetBase, TransferBase, quantize_money
+from app.services.targets import TargetStatus
 
 
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
@@ -210,6 +211,42 @@ class BalanceRead(SQLModel):
     accounts: list[AccountBalanceRead]
 
 
+# --- Targets ------------------------------------------------------------------
+
+
+class TargetCreate(TargetBase):
+    """Body for POST /targets. start_date defaults to today in the request's
+    timezone; end_date must be on or after it."""
+
+    start_date: dt.date | None = None
+
+
+class TargetUpdate(SQLModel):
+    name: str | None = Field(default=None, min_length=1, max_length=50)
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    end_date: dt.date | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal | None) -> Decimal | None:
+        return None if value is None else quantize_money(value)
+
+
+class TargetRead(TargetBase):
+    id: int
+    start_balance: Decimal
+    current_balance: Decimal
+    remaining: Decimal
+    days_total: int
+    days_elapsed: int
+    days_left: int
+    required_per_day: Decimal
+    expected_balance: Decimal
+    projected_balance: Decimal
+    projected_date: dt.date | None
+    status: TargetStatus
+
+
 # --- Categorization -----------------------------------------------------------
 
 
@@ -256,6 +293,7 @@ class DailySummaryRead(SQLModel):
     earned_this_month: Decimal
     balance: Decimal
     accounts: list[AccountBalanceRead]
+    targets: list[TargetRead]
 
 
 class MonthlySummaryRead(SQLModel):

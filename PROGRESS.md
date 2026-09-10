@@ -136,10 +136,20 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 13b — Accounts & transfers
 
-**Status:** done, awaiting owner verification on Render (migration runs automatically on deploy)
+**Status:** done, verified by owner on Render (first data migration applied in place)
 
 **Delivered:** `accounts` table (name unique per user, `type` enum debit/cash/other, free-text `subtype` for the bank, `opening_balance`), `account_id` on expenses and incomes (defaults to General), `transfers` table (from/to accounts, amount, date, description). `users.opening_balance` removed. Migration `4004c26c965e` creates a General account per existing user carrying their old opening balance, backfills every expense and income onto it (nullable column → backfill → NOT NULL), and its downgrade restores `users.opening_balance` from General. `services/accounts.py` seeds General at registration; `services/ledger.py` computes per-account balances (opening + income − expenses + transfers in − transfers out) with four GROUP BY queries. Endpoints: `/accounts` CRUD (General protected; delete folds opening balance, expenses, incomes into General, drops transfers between the two, re-points transfers with third accounts), `/transfers` CRUD (from ≠ to, both must be the caller's), `account_id` filters on `/expenses` and `/incomes`, `/balance` and `/summary/daily` gain `accounts`. `PATCH /me` removed (opening balance lives on accounts). App: account picker on expense and income forms (remembers last used), Transfer segment, per-account chips under the balance, transfers in today's list, Accounts tab (add / tap-to-edit / delete, Log out moved here). 16 new tests (107 total), including the data-migration test.
 
 **Verified:** app started against the local database at the baseline revision with data: migration ran, every user got General with their opening balance, no null account_ids. curl: create/duplicate/bad-type accounts, expense and income on a chosen account, default to General, foreign account 422, transfer create/filter/patch/same-account 422, balances per account with total unchanged by transfers, rename/opening patch, General delete 409, account delete folding (total unchanged before/after). Headless mobile walkthrough: add account, edit General's opening, transfer between accounts, chips and list update, logout from Accounts tab. Suite green. Migration down/up round trip on a populated scratch DB.
 
 **Known gaps:** no credit-card accounts yet (enum change is a one-line migration when wanted). Account edit form uses the same card as add; fine on mobile.
+
+## Phase 13c — Targets
+
+**Status:** done, awaiting owner verification
+
+**Delivered:** `targets` table (name, amount = balance to reach, start_date, end_date, `start_balance` snapshot) via migration `e890c56b0580`. `services/targets.py` is pure: `target_progress(target, current_balance, today)` returns remaining, days total/elapsed/left (inclusive), `required_per_day` (remaining ÷ days left, rounded up to the cent), `expected_balance` on the straight line from start balance to goal, `projected_balance` and `projected_date` from the average daily change so far, and a status of on_track / behind / achieved / expired. Endpoints: `POST/GET /targets` (progress computed on read against the live balance; `tz` decides today), `GET/PATCH/DELETE /targets/{id}`. Daily summary gains `targets` (additive). App: a Targets card on the Today tab with progress bar, "€X/day" and "at this pace done <date>", status chip, set and delete. 17 new tests (124 total), 10 of them pure maths cases including rounding, last day, achieved, expired, falling balance and pace-from-start-balance.
+
+**Verified:** live curl: 30-day target €300 above balance → €10.00/day; €60 income → €8.00/day, on track; PATCH amount down → achieved; end before start → 422; summary carries targets. Headless walkthrough: set target, per-day figure drops after adding income, status chip renders. Suite green.
+
+**Known gaps:** targets are balance-based only (the owner's choice); an "earned since start" variant would be one enum field. No edit form in the app; PATCH exists in the API.

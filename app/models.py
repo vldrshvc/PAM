@@ -192,3 +192,33 @@ class Transfer(TransferBase, table=True):
     user_id: int = Field(foreign_key="users.id", index=True)
     from_account_id: int = Field(foreign_key="accounts.id", index=True)
     to_account_id: int = Field(foreign_key="accounts.id", index=True)
+
+
+class TargetBase(SQLModel):
+    name: str = Field(min_length=1, max_length=50)
+    # The total balance to reach by end_date.
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    start_date: date
+    end_date: date
+
+    @field_validator("name")
+    @classmethod
+    def _strip_name(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("name must not be blank")
+        return stripped
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal) -> Decimal:
+        return quantize_money(value)
+
+
+class Target(TargetBase, table=True):
+    __tablename__ = "targets"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    # Balance when the target was set; the pace line runs from here.
+    start_balance: Decimal = Field(max_digits=12, decimal_places=2)

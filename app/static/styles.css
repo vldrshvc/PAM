@@ -25,6 +25,12 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); }
 .chip b { color: var(--ink); }
 button.danger { width: 100%; color: var(--danger); border-color: var(--danger); }
+.status { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+.status.on_track { background: #e2f1ec; color: var(--accent); }
+.status.behind { background: #f8e3e2; color: var(--danger); }
+.status.achieved { background: var(--accent); color: #fff; }
+.per-day { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.per-day b { color: var(--ink); }
 main { max-width: 560px; margin: 0 auto; padding: 12px; display: grid; gap: 12px; }
 .card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
 .card.narrow { max-width: 360px; margin: 48px auto; }

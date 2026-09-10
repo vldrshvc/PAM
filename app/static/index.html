@@ -110,6 +110,21 @@
       <h2>Today</h2>
       <ul id="today-list" class="list"></ul>
     </section>
+
+    <section class="card">
+      <h2>Targets</h2>
+      <ul id="target-list" class="list"></ul>
+      <form id="target-form" class="stack">
+        <div class="row">
+          <input id="target-name" placeholder="Target (e.g. Laptop)" required maxlength="50">
+          <input id="target-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Balance to reach" required>
+        </div>
+        <div class="row">
+          <input id="target-date" type="date" required>
+          <button type="submit">Set target</button>
+        </div>
+      </form>
+    </section>
   </template>
 
   <template id="tpl-month">

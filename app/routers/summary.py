@@ -7,11 +7,12 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Category, Expense, ExpenseStatus, User
-from app.schemas import AccountBalanceRead, CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead
+from app.models import Category, Expense, ExpenseStatus, Target, User
+from app.schemas import AccountBalanceRead, CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead, TargetRead
 from app.security import get_current_user
 from app.services.budget import budget_totals, month_bounds, today_in
 from app.services.ledger import account_balances, current_balance, expense_total, income_total
+from app.services.targets import target_progress
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -47,6 +48,15 @@ def user_categories(session: Session, user_id: int) -> list[Category]:
     return list(session.exec(statement).all())
 
 
+def read_targets(session: Session, user_id: int, today: date) -> list[TargetRead]:
+    balance = current_balance(session, user_id)
+    statement = select(Target).where(Target.user_id == user_id).order_by(Target.end_date, Target.id)
+    return [
+        TargetRead.model_validate(t, update=vars(target_progress(t, balance, today)))
+        for t in session.exec(statement).all()
+    ]
+
+
 @router.get("/daily", response_model=DailySummaryRead)
 def daily_summary(
     tz: str = TzQuery,
@@ -80,6 +90,7 @@ def daily_summary(
             AccountBalanceRead.model_validate(e.account, update={"balance": e.balance})
             for e in account_balances(session, user.id)
         ],
+        targets=read_targets(session, user.id, today),
     )
 
 

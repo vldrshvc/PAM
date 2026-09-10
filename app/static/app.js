@@ -236,12 +236,76 @@ async function showToday() {
   renderAccountOptions($("#transfer-from", view), state.accounts[0]?.id);
   renderAccountOptions($("#transfer-to", view), state.accounts[1]?.id ?? state.accounts[0]?.id);
   $("#transfer-form", view).addEventListener("submit", addTransfer);
+  $("#target-date", view).value = todayISO();
+  $("#target-form", view).addEventListener("submit", addTarget);
   for (const button of view.querySelectorAll("#kind button")) {
     button.addEventListener("click", () => setKind(button.dataset.kind));
   }
   setKind(state.kind);
 
   await Promise.all([refreshSummary(), refreshTodayList()]);
+}
+
+// --- targets -------------------------------------------------------------
+
+const STATUS_LABELS = { on_track: "On track", behind: "Behind", achieved: "Achieved", expired: "Expired" };
+
+function renderTargets(targets) {
+  const list = $("#target-list");
+  if (!list) return;
+  const items = targets.map((t) => {
+    const item = li({
+      title: `${t.name} · ${money(t.amount)} by ${new Date(`${t.end_date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`,
+      sub: t.status === "achieved" ? "Reached." : t.status === "expired" ? `Missed by ${money(t.remaining)}.` : `${money(t.remaining)} to go · ${t.days_left} day${t.days_left === 1 ? "" : "s"} left`,
+      bar: Number(t.amount) > 0 ? Math.max(0, (Number(t.current_balance) / Number(t.amount)) * 100) : 0,
+      onDelete: () => deleteTarget(t),
+    });
+    const main = item.querySelector(".main");
+    if (t.status === "on_track" || t.status === "behind") {
+      const perDay = document.createElement("div");
+      perDay.className = "per-day";
+      perDay.append("Need ");
+      const b = document.createElement("b");
+      b.textContent = `${money(t.required_per_day)}/day`;
+      perDay.append(b);
+      if (t.projected_date) perDay.append(` · at this pace done ${new Date(`${t.projected_date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`);
+      main.appendChild(perDay);
+    }
+    const status = document.createElement("span");
+    status.className = `status ${t.status}`;
+    status.textContent = STATUS_LABELS[t.status];
+    item.insertBefore(status, item.querySelector(".icon"));
+    return item;
+  });
+  fillList(list, items, "No targets yet. Set a balance to reach by a date.");
+}
+
+async function addTarget(event) {
+  event.preventDefault();
+  const body = {
+    name: $("#target-name").value.trim(),
+    amount: $("#target-amount").value,
+    end_date: $("#target-date").value,
+  };
+  try {
+    await api(`/targets?tz=${encodeURIComponent(TZ)}`, { method: "POST", body });
+    $("#target-form").reset();
+    $("#target-date").value = todayISO();
+    toast("Target set");
+    await refreshSummary();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function deleteTarget(target) {
+  if (!confirm(`Delete target "${target.name}"?`)) return;
+  try {
+    await api(`/targets/${target.id}`, { method: "DELETE" });
+    await refreshSummary();
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 function setKind(kind) {
@@ -351,6 +415,7 @@ async function refreshSummary() {
   const remaining = $("#remaining");
   remaining.textContent = s.budget_total === "0.00" ? "no budget" : money(s.remaining_total);
   remaining.classList.toggle("over", s.over_budget);
+  renderTargets(s.targets);
 }
 
 const SOURCE_LABELS = { work: "Work", friend: "Friend", debt: "Debt", bonus: "Bonus", other: "Other" };
