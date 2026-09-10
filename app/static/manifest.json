@@ -1,0 +1,12 @@
+{
+  "name": "Personal Finance Tracker",
+  "short_name": "PAM",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#f4f5f4",
+  "theme_color": "#1f6f5f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

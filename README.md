@@ -4,7 +4,13 @@ Self-hosted expense tracker with an API-first backend, LLM-based expense categor
 
 Type "SuperValu €12.40", get back `Groceries` and `12.40`. Set a monthly limit per category and the daily summary tells you what you spent today and what's left this month.
 
-**Live:** https://pam-u8qh.onrender.com/docs (free tier: the first request after 15 idle minutes takes about a minute to wake).
+**Live:** https://pam-u8qh.onrender.com/app/ (mobile web app) and https://pam-u8qh.onrender.com/docs (API). Free tier: the first request after 15 idle minutes takes about a minute to wake.
+
+<p>
+  <img src="docs/app-today.png" width="230" alt="Today: spent, quick add with suggested category, today's list">
+  <img src="docs/app-month.png" width="230" alt="Month: spend vs limit per category">
+  <img src="docs/app-categories.png" width="230" alt="Categories: add, set limit, delete">
+</p>
 
 ## Stack
 
@@ -15,7 +21,8 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Set a monthly limit
 | Database | PostgreSQL 16 in Docker, psycopg2 | Named volume, data survives container recreation |
 | Auth | OAuth2 password flow, JWT (HS256), argon2id hashes | Standard flow, works with the Swagger "Authorize" button |
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
-| Tests | pytest, 76 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
+| Tests | pytest, 78 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -26,7 +33,7 @@ cp .env.example .env            # set POSTGRES_PASSWORD, JWT_SECRET, LLM_API_KEY
 docker compose up --build
 ```
 
-API at http://localhost:8000, interactive docs at http://localhost:8000/docs.
+App at http://localhost:8000/app/, interactive API docs at http://localhost:8000/docs.
 
 `JWT_SECRET` must be at least 32 characters (`python -c "import secrets; print(secrets.token_hex(32))"`). `LLM_API_KEY` is optional: without it everything works except `POST /categorize`, which returns 503.
 
@@ -68,6 +75,12 @@ curl -H "$AUTH" "localhost:8000/summary/daily?tz=Europe/Dublin"
 #  "remaining_total":"287.60","over_budget":false,"categories":[{"id":2,"name":"Groceries",...}]}
 ```
 
+## Mobile app
+
+`/app/` is a single-page client in `app/static/`: log in, type "SuperValu 12.40", tap Suggest, confirm the category, add. Today's list with delete, the month's spend against limits, and category management with limits. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
+
+Install on Android: open the URL in Chrome → menu → **Add to Home screen**. The manifest sets `display: standalone`, so it opens full-screen without browser chrome.
+
 ## API
 
 All routes except `/health`, `/register` and `/token` require `Authorization: Bearer <token>` and only ever return the caller's own data.
@@ -99,7 +112,8 @@ app/
 ├── security.py        argon2 hashing, JWT encode/decode, get_current_user dependency
 ├── llm.py             One chat call against an OpenAI-compatible endpoint; SDK errors → LLMUnavailableError
 ├── routers/           HTTP only: auth, expenses, categories, summary, categorize
-└── services/          Pure logic, no I/O: budget maths, categorization prompt/parse/match
+├── services/          Pure logic, no I/O: budget maths, categorization prompt/parse/match
+└── static/            Mobile web client (index.html, app.js, styles.css, manifest.json)
 tests/                 pytest; conftest creates <db>_test, truncates per test, fakes the LLM
 ```
 
@@ -161,7 +175,7 @@ Pending (auto-ingested, unconfirmed) expenses are excluded from every total. `GE
 pytest
 ```
 
-76 tests in about 5 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives.
+78 tests in about 5 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives.
 
 ## Configuration
 
@@ -195,4 +209,4 @@ The container is the same image compose builds locally. Render injects `PORT`; t
 
 - **Auto-ingestion**: Revolut transactions arrive as `status: pending` expenses. The status column and the exclusion of pending rows from totals are already in place.
 - **Confirm-and-describe**: push notification to the phone; user confirms, picks a category, adds a description.
-- **Widget**: KWGT for the MVP, native Kotlin/Glance later. Both only ever call `/summary/daily`.
+- **Widget**: a native Android home-screen widget (Kotlin/Glance) that only ever calls `/summary/daily`.

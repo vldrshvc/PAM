@@ -18,7 +18,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 - [x] pytest suite green (76 tests, real Postgres, LLM faked)
 - [x] Deployed to a public URL: https://pam-u8qh.onrender.com
 - [x] README with stack, setup, example requests
-- [ ] Screenshots in README
+- [x] Screenshots in README (mobile app, headless Chromium renders)
 
 ## Phase 1 — Core skeleton
 
@@ -98,4 +98,18 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 **Verified:** `docker compose config` valid with both services and the composed `DATABASE_URL`; URL normalization checked for `postgres://...?sslmode=require` and pass-through; the container's exact start command run outside Docker with `PORT=8123` serves `/health`; test suite green. Image build and `docker compose up --build` NOT run in the build sandbox (registry blob downloads blocked); owner verifies.
 
-**Known gaps:** no screenshots yet (add `/docs` and the widget). No CI config (out of scope).
+**Known gaps:** no CI config (out of scope).
+
+## Phase 11a — Mobile web app
+
+**Status:** done, awaiting owner verification on the phone
+
+**Delivered:** `app/static/` (index.html, app.js, styles.css, manifest.json, icon.svg) mounted at `/app`; `/` redirects there. Vanilla JS, no build step. Screens: login/register; Today (spent today / this month / remaining, quick-add with `POST /categorize` suggestion prefilling amount, category and description, today's list with delete); Month (spend vs limit per category with progress bars); Categories (add with limit, tap to set/clear limit, delete except `uncategorized`). JWT in `localStorage`; device timezone from `Intl` sent as `tz`. A 401 on any call logs the user out. Installable as a PWA (`display: standalone`). Two static tests added (78 total).
+
+**Verified:** driven end to end in headless Chromium at a 412×915 mobile viewport against the running API and the LLM stand-in: register → suggestion fills 12.40 / Groceries / "SuperValu" → add → list and totals update → fallback suggestion flagged and left as uncategorized → category add with limit, limit edit via prompt, delete → month view totals and bars → expense delete recomputes totals → reload keeps session → logout, wrong password shows the API's message. No console errors. Screenshots in `docs/`.
+
+**Known gaps:** no service worker, so no offline mode (the app needs the API anyway). Limit editing uses a browser `prompt()`; fine on mobile, not pretty.
+
+## Phase 11b — Android home-screen widget
+
+**Status:** not started. Native widget-only project (Kotlin + Glance) polling `GET /summary/daily`.
