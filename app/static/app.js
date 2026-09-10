@@ -7,7 +7,7 @@
 const TOKEN_KEY = "pam.token";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-const state = { view: "today", categories: [] };
+const state = { view: "today", kind: "expense", categories: [] };
 
 // --- API -----------------------------------------------------------------
 
@@ -76,7 +76,7 @@ function render(templateId) {
   return view;
 }
 
-function li({ title, sub, amount, over = false, onDelete, bar }) {
+function li({ title, sub, amount, over = false, plus = false, onDelete, bar }) {
   const item = document.createElement("li");
   const main = document.createElement("div");
   main.className = "main";
@@ -102,7 +102,7 @@ function li({ title, sub, amount, over = false, onDelete, bar }) {
   item.appendChild(main);
   if (amount !== undefined) {
     const a = document.createElement("span");
-    a.className = `amount${over ? " over" : ""}`;
+    a.className = `amount${over ? " over" : ""}${plus ? " plus" : ""}`;
     a.textContent = amount;
     item.appendChild(a);
   }
@@ -118,6 +118,9 @@ function li({ title, sub, amount, over = false, onDelete, bar }) {
 }
 
 function fillList(listEl, items, emptyText) {
+  // The view may have been replaced (tab switch, logout) while the
+  // request was in flight; then there is nothing to fill.
+  if (!listEl) return;
   listEl.replaceChildren(...items);
   if (items.length === 0) {
     const empty = document.createElement("li");
@@ -205,7 +208,52 @@ async function showToday() {
   });
   $("#add-form", view).addEventListener("submit", addExpense);
 
+  $("#income-date", view).value = todayISO();
+  $("#income-form", view).addEventListener("submit", addIncome);
+  for (const button of view.querySelectorAll("#kind button")) {
+    button.addEventListener("click", () => setKind(button.dataset.kind));
+  }
+  setKind(state.kind);
+
   await Promise.all([refreshSummary(), refreshTodayList()]);
+}
+
+function setKind(kind) {
+  state.kind = kind;
+  for (const button of document.querySelectorAll("#kind button")) {
+    button.classList.toggle("active", button.dataset.kind === kind);
+  }
+  $("#add-form").hidden = kind !== "expense";
+  $("#income-form").hidden = kind !== "income";
+}
+
+async function addIncome(event) {
+  event.preventDefault();
+  const body = {
+    amount: $("#income-amount").value,
+    date: $("#income-date").value,
+    source: $("#income-source").value,
+    description: $("#income-description").value.trim() || null,
+  };
+  try {
+    await api("/incomes", { method: "POST", body });
+    $("#income-form").reset();
+    $("#income-date").value = todayISO();
+    toast("Income added");
+    await Promise.all([refreshSummary(), refreshTodayList()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function deleteIncome(income) {
+  if (!confirm(`Delete +${money(income.amount)} ${income.description || SOURCE_LABELS[income.source]}?`)) return;
+  try {
+    await api(`/incomes/${income.id}`, { method: "DELETE" });
+    await Promise.all([refreshSummary(), refreshTodayList()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 function renderCategoryOptions(select, selectedId) {
@@ -222,24 +270,43 @@ function renderCategoryOptions(select, selectedId) {
 
 async function refreshSummary() {
   const s = await api(`/summary/daily?tz=${encodeURIComponent(TZ)}`);
+  if (!$("#summary-card")) return;
+  $("#balance").textContent = money(s.balance);
   $("#spent-today").textContent = money(s.spent_today);
+  $("#earned-today").textContent = `+${money(s.earned_today)}`;
   $("#spent-month").textContent = money(s.spent_this_month);
   const remaining = $("#remaining");
   remaining.textContent = s.budget_total === "0.00" ? "no budget" : money(s.remaining_total);
   remaining.classList.toggle("over", s.over_budget);
 }
 
+const SOURCE_LABELS = { work: "Work", friend: "Friend", debt: "Debt", bonus: "Bonus", other: "Other" };
+
 async function refreshTodayList() {
   const today = todayISO();
-  const expenses = await api(`/expenses?date_from=${today}&date_to=${today}`);
-  const items = expenses.map((e) =>
-    li({
-      title: e.description || categoryName(e.category_id),
-      sub: e.description ? categoryName(e.category_id) : "",
-      amount: money(e.price),
-      onDelete: () => deleteExpense(e),
-    })
-  );
+  const [expenses, incomes] = await Promise.all([
+    api(`/expenses?date_from=${today}&date_to=${today}`),
+    api(`/incomes?date_from=${today}&date_to=${today}`),
+  ]);
+  const items = [
+    ...incomes.map((i) =>
+      li({
+        title: i.description || SOURCE_LABELS[i.source],
+        sub: i.description ? SOURCE_LABELS[i.source] : "",
+        amount: `+${money(i.amount)}`,
+        plus: true,
+        onDelete: () => deleteIncome(i),
+      })
+    ),
+    ...expenses.map((e) =>
+      li({
+        title: e.description || categoryName(e.category_id),
+        sub: e.description ? categoryName(e.category_id) : "",
+        amount: money(e.price),
+        onDelete: () => deleteExpense(e),
+      })
+    ),
+  ];
   fillList($("#today-list"), items, "Nothing yet today.");
 }
 
@@ -309,6 +376,10 @@ async function showMonth() {
   const s = await api(`/summary/monthly?tz=${encodeURIComponent(TZ)}`);
   $("#month-title").textContent = new Date(`${s.month}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   $("#m-spent").textContent = money(s.spent_total);
+  $("#m-earned").textContent = `+${money(s.earned_total)}`;
+  const net = Number(s.earned_total) - Number(s.spent_total);
+  $("#m-net").textContent = `${net < 0 ? "-" : "+"}${money(Math.abs(net).toFixed(2))}`;
+  $("#m-net").classList.toggle("over", net < 0);
   const remaining = $("#m-remaining");
   remaining.textContent = s.budget_total === "0.00" ? "no budget" : money(s.remaining_total);
   remaining.classList.toggle("over", s.over_budget);
@@ -344,6 +415,27 @@ async function showCategories() {
     }
   });
   renderCategoryList();
+  await refreshOpeningBalance();
+  $("#opening-row", view).addEventListener("click", editOpeningBalance);
+}
+
+async function refreshOpeningBalance() {
+  const me = await api("/me");
+  $("#opening-amount").textContent = money(me.opening_balance);
+  $("#opening-sub").textContent = "what you had before your first entry · tap to change";
+}
+
+async function editOpeningBalance() {
+  const current = $("#opening-amount").textContent.replace("€", "");
+  const input = prompt("Opening balance (can be negative):", current);
+  if (input === null || input.trim() === "") return;
+  try {
+    await api("/me", { method: "PATCH", body: { opening_balance: input.trim() } });
+    await refreshOpeningBalance();
+    toast("Opening balance saved");
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 function renderCategoryList() {

@@ -18,6 +18,9 @@ def seed(client, headers) -> tuple[date, date]:
 
     client.patch("/categories/2", json={"monthly_limit": 300}, headers=headers)
     client.patch("/categories/3", json={"monthly_limit": 100}, headers=headers)
+    client.patch("/me", json={"opening_balance": 100}, headers=headers)
+    client.post("/incomes", json={"amount": 500, "date": today.isoformat(), "source": "work"}, headers=headers)
+    client.post("/incomes", json={"amount": 30, "date": last_month.isoformat(), "source": "friend"}, headers=headers)
     for price, day, category in [
         (120, earlier, 2),
         (45.5, today, 2),
@@ -51,6 +54,10 @@ def test_daily_summary_shape_and_maths(client, auth):
     groceries, eating_out = body["categories"]
     assert groceries == {"id": 2, "name": "Groceries", "monthly_limit": "300.00", "spent": "165.50", "remaining": "134.50", "over_budget": False}
     assert eating_out["remaining"] == "-15.00" and eating_out["over_budget"] is True
+    assert body["earned_today"] == "500.00"
+    assert body["earned_this_month"] == "500.00"
+    # 100 opening + 530 income - (287.50 + 999) expenses, all time
+    assert body["balance"] == "-656.50"
 
 
 def test_daily_summary_is_empty_for_fresh_user(client, auth):
@@ -58,6 +65,7 @@ def test_daily_summary_is_empty_for_fresh_user(client, auth):
     assert body["spent_today"] == "0.00"
     assert body["budget_total"] == "0.00"
     assert body["categories"] == []
+    assert body["earned_today"] == "0.00" and body["balance"] == "0.00"
 
 
 def test_daily_summary_defaults_to_utc_and_rejects_unknown_zone(client, auth):
@@ -80,6 +88,7 @@ def test_monthly_summary_lists_every_category(client, auth):
     assert by_name["uncategorized"]["spent"] == "7.00"
     assert by_name["uncategorized"]["remaining"] is None
     assert by_name["Transport"]["spent"] == "0.00"
+    assert body["earned_total"] == "500.00"
 
 
 def test_monthly_summary_accepts_explicit_month(client, auth):
@@ -91,6 +100,7 @@ def test_monthly_summary_accepts_explicit_month(client, auth):
     assert body["spent_total"] == "999.00"
     assert body["remaining_total"] == "-599.00"
     assert body["over_budget"] is True
+    assert body["earned_total"] == "30.00"
     assert client.get("/summary/monthly", params={"month": "2026-13"}, headers=headers).status_code == 422
 
 

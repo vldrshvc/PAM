@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
-from app.models import CategoryBase, ExpenseBase, ExpenseStatus, quantize_money
+from app.models import CategoryBase, ExpenseBase, ExpenseStatus, IncomeBase, IncomeSource, quantize_money
 
 
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
@@ -35,6 +35,19 @@ class UserCreate(SQLModel):
 class UserRead(SQLModel):
     id: int
     username: str
+
+
+class MeRead(UserRead):
+    opening_balance: Decimal
+
+
+class MeUpdate(SQLModel):
+    opening_balance: Decimal = Field(max_digits=12, decimal_places=2)
+
+    @field_validator("opening_balance")
+    @classmethod
+    def _normalize(cls, value: Decimal) -> Decimal:
+        return quantize_money(value)
 
 
 class TokenRead(SQLModel):
@@ -107,6 +120,37 @@ class ExpenseRead(ExpenseBase):
     status: ExpenseStatus
 
 
+# --- Incomes & balance --------------------------------------------------------
+
+
+class IncomeCreate(IncomeBase):
+    """Body for POST /incomes."""
+
+
+class IncomeUpdate(SQLModel):
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    date: dt.date | None = None
+    source: IncomeSource | None = None
+    description: str | None = Field(default=None, max_length=255)
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal | None) -> Decimal | None:
+        return None if value is None else quantize_money(value)
+
+
+class IncomeRead(IncomeBase):
+    id: int
+
+
+class BalanceRead(SQLModel):
+    opening_balance: Decimal
+    income_total: Decimal
+    expense_total: Decimal
+    # opening_balance + income_total - expense_total, all time.
+    balance: Decimal
+
+
 # --- Categorization -----------------------------------------------------------
 
 
@@ -148,6 +192,10 @@ class DailySummaryRead(SQLModel):
     remaining_total: Decimal
     over_budget: bool
     categories: list[CategoryBudgetRead]
+    # Added after the contract was frozen; additions are allowed, renames are not.
+    earned_today: Decimal
+    earned_this_month: Decimal
+    balance: Decimal
 
 
 class MonthlySummaryRead(SQLModel):
@@ -158,3 +206,5 @@ class MonthlySummaryRead(SQLModel):
     remaining_total: Decimal
     over_budget: bool
     categories: list[CategoryBudgetRead]
+    earned_total: Decimal
+    balance: Decimal

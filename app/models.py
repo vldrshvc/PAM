@@ -20,6 +20,14 @@ class ExpenseStatus(str, Enum):
     CONFIRMED = "confirmed"
 
 
+class IncomeSource(str, Enum):
+    WORK = "work"
+    FRIEND = "friend"
+    DEBT = "debt"
+    BONUS = "bonus"
+    OTHER = "other"
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
@@ -27,6 +35,9 @@ class User(SQLModel, table=True):
     username: str = Field(min_length=3, max_length=50, unique=True, index=True)
     # Only ever an argon2id hash; the plaintext never touches this model.
     hashed_password: str
+    # What was in the account before the first recorded transaction, so the
+    # computed balance matches reality. May be negative (overdrawn).
+    opening_balance: Decimal = Field(default=Decimal("0.00"), max_digits=12, decimal_places=2)
 
 
 class CategoryBase(SQLModel):
@@ -56,6 +67,32 @@ class Category(CategoryBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+
+
+class IncomeBase(SQLModel):
+    amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    date: date
+    source: IncomeSource = IncomeSource.WORK
+    description: str | None = Field(default=None, max_length=255)
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal) -> Decimal:
+        return quantize_money(value)
+
+
+class Income(IncomeBase, table=True):
+    __tablename__ = "incomes"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    source: IncomeSource = Field(
+        default=IncomeSource.WORK,
+        sa_column=Column(
+            SAEnum(IncomeSource, name="income_source", values_callable=lambda e: [m.value for m in e]),
+            nullable=False,
+        ),
+    )
 
 
 class ExpenseBase(SQLModel):

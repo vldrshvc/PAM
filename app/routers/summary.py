@@ -10,7 +10,8 @@ from app.database import get_session
 from app.models import Category, Expense, ExpenseStatus, User
 from app.schemas import CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead
 from app.security import get_current_user
-from app.services.budget import ZERO, budget_totals, month_bounds, today_in
+from app.services.budget import budget_totals, month_bounds, today_in
+from app.services.ledger import current_balance, expense_total, income_total
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -41,15 +42,6 @@ def spent_by_category(session: Session, user_id: int, start: date, end: date) ->
     return {category_id: total for category_id, total in session.exec(statement).all()}
 
 
-def spent_total(session: Session, user_id: int, start: date, end: date) -> Decimal:
-    statement = (
-        select(func.coalesce(func.sum(Expense.price), 0))
-        .where(Expense.user_id == user_id, Expense.date >= start, Expense.date <= end)
-        .where(Expense.status == ExpenseStatus.CONFIRMED)
-    )
-    return Decimal(session.exec(statement).one()).quantize(ZERO)
-
-
 def user_categories(session: Session, user_id: int) -> list[Category]:
     statement = select(Category).where(Category.user_id == user_id).order_by(Category.id)
     return list(session.exec(statement).all())
@@ -75,12 +67,15 @@ def daily_summary(
     return DailySummaryRead(
         date=today,
         timezone=zone.key,
-        spent_today=spent_total(session, user.id, today, today),
+        spent_today=expense_total(session, user.id, today, today),
         spent_this_month=totals.spent_total,
         budget_total=totals.budget_total,
         remaining_total=totals.remaining_total,
         over_budget=totals.over_budget,
         categories=[CategoryBudgetRead.model_validate(c, from_attributes=True) for c in budgeted],
+        earned_today=income_total(session, user.id, today, today),
+        earned_this_month=income_total(session, user.id, month_start, month_end),
+        balance=current_balance(session, user),
     )
 
 
@@ -110,4 +105,6 @@ def monthly_summary(
         remaining_total=totals.remaining_total,
         over_budget=totals.over_budget,
         categories=[CategoryBudgetRead.model_validate(c, from_attributes=True) for c in totals.categories],
+        earned_total=income_total(session, user.id, start, end),
+        balance=current_balance(session, user),
     )

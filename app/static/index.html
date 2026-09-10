@@ -40,14 +40,20 @@
 
   <template id="tpl-today">
     <section class="card summary" id="summary-card">
-      <div class="big"><span class="label">Spent today</span><span id="spent-today">–</span></div>
+      <div class="big"><span class="label">Balance</span><span id="balance">–</span></div>
       <div class="split">
-        <div><span class="label">This month</span><span id="spent-month">–</span></div>
-        <div><span class="label">Remaining</span><span id="remaining" class="remaining">–</span></div>
+        <div><span class="label">Spent today</span><span id="spent-today">–</span></div>
+        <div><span class="label">Earned today</span><span id="earned-today" class="plus">–</span></div>
+        <div><span class="label">Spent this month</span><span id="spent-month">–</span></div>
+        <div><span class="label">Budget left</span><span id="remaining" class="remaining">–</span></div>
       </div>
     </section>
 
     <section class="card">
+      <div class="segmented" id="kind">
+        <button type="button" data-kind="expense" class="active">Expense</button>
+        <button type="button" data-kind="income">Income</button>
+      </div>
       <form id="add-form" class="stack">
         <div class="row">
           <input id="raw-text" placeholder='e.g. "SuperValu 12.40"' autocomplete="off">
@@ -64,6 +70,23 @@
         <p id="suggest-note" class="note" hidden></p>
         <button type="submit" class="primary">Add expense</button>
       </form>
+      <form id="income-form" class="stack" hidden>
+        <div class="row">
+          <input id="income-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+          <select id="income-source" required>
+            <option value="work">Work</option>
+            <option value="friend">Friend</option>
+            <option value="debt">Debt</option>
+            <option value="bonus">Bonus</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="income-date" type="date" required>
+          <input id="income-description" placeholder="Description (optional)" maxlength="255">
+        </div>
+        <button type="submit" class="primary">Add income</button>
+      </form>
     </section>
 
     <section class="card">
@@ -77,7 +100,9 @@
       <h2 id="month-title">This month</h2>
       <div class="split">
         <div><span class="label">Spent</span><span id="m-spent">–</span></div>
+        <div><span class="label">Earned</span><span id="m-earned" class="plus">–</span></div>
         <div><span class="label">Budget left</span><span id="m-remaining" class="remaining">–</span></div>
+        <div><span class="label">Net this month</span><span id="m-net">–</span></div>
       </div>
       <ul id="month-list" class="list"></ul>
     </section>
@@ -93,6 +118,10 @@
     </section>
     <section class="card">
       <ul id="cat-list" class="list"></ul>
+    </section>
+    <section class="card">
+      <h2>Account</h2>
+      <ul class="list"><li id="opening-row"><div class="main"><div class="title">Opening balance</div><div class="sub" id="opening-sub">tap to set</div></div><span class="amount" id="opening-amount">–</span></li></ul>
     </section>
   </template>
 

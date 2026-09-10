@@ -102,7 +102,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 11a — Mobile web app
 
-**Status:** done, awaiting owner verification on the phone
+**Status:** done, verified by owner on the phone
 
 **Delivered:** `app/static/` (index.html, app.js, styles.css, manifest.json, icon.svg) mounted at `/app`; `/` redirects there. Vanilla JS, no build step. Screens: login/register; Today (spent today / this month / remaining, quick-add with `POST /categorize` suggestion prefilling amount, category and description, today's list with delete); Month (spend vs limit per category with progress bars); Categories (add with limit, tap to set/clear limit, delete except `uncategorized`). JWT in `localStorage`; device timezone from `Intl` sent as `tz`. A 401 on any call logs the user out. Installable as a PWA (`display: standalone`). Two static tests added (78 total).
 
@@ -113,3 +113,13 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 ## Phase 11b — Android home-screen widget
 
 **Status:** not started. Native widget-only project (Kotlin + Glance) polling `GET /summary/daily`.
+
+## Phase 12 — Income & balance
+
+**Status:** done, awaiting owner verification (Neon schema reset required, see below)
+
+**Delivered:** `incomes` table (amount, date, `source` enum work/friend/debt/bonus/other, description, user_id) and `users.opening_balance` (NUMERIC(12,2), may be negative). `app/services/ledger.py`: `income_total`, `expense_total` (confirmed only), `balance`. Endpoints: `POST/GET /incomes` (filters date range + source), `GET/PATCH/DELETE /incomes/{id}`, `GET/PATCH /me`, `GET /balance`. Daily summary gained `earned_today`, `earned_this_month`, `balance`; monthly gained `earned_total`, `balance` (additive, contract intact). App: Expense/Income switch on the add form, balance headline with spent/earned today, incomes in today's list, earned and net on the Month tab, opening balance under Categories. 11 new tests (89 total).
+
+**Verified:** curl against local Postgres: schema, CRUD, validation (negative, missing date, unknown source), filters, PATCH null rejection, balance 150 + 575.50 − 12.40 = 713.10, per-user isolation, 401s. Headless mobile Chromium walkthrough: add income → balance and list update, opening balance via prompt, month earned/net, delete recomputes balance. Suite green.
+
+**Known gaps / action needed:** `create_all` does not add columns to existing tables, so the deployed Neon database must be reset (drop tables) before this deploys; data there is test data. Proper migrations (Alembic) are the next infrastructure step if the data becomes real.
