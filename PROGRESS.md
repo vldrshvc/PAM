@@ -146,7 +146,7 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 13c — Targets
 
-**Status:** done, awaiting owner verification
+**Status:** done, verified by owner on Render
 
 **Delivered:** `targets` table (name, amount = balance to reach, start_date, end_date, `start_balance` snapshot) via migration `e890c56b0580`. `services/targets.py` is pure: `target_progress(target, current_balance, today)` returns remaining, days total/elapsed/left (inclusive), `required_per_day` (remaining ÷ days left, rounded up to the cent), `expected_balance` on the straight line from start balance to goal, `projected_balance` and `projected_date` from the average daily change so far, and a status of on_track / behind / achieved / expired. Endpoints: `POST/GET /targets` (progress computed on read against the live balance; `tz` decides today), `GET/PATCH/DELETE /targets/{id}`. Daily summary gains `targets` (additive). App: a Targets card on the Today tab with progress bar, "€X/day" and "at this pace done <date>", status chip, set and delete. 17 new tests (124 total), 10 of them pure maths cases including rounding, last day, achieved, expired, falling balance and pace-from-start-balance.
 
