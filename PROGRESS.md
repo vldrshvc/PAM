@@ -126,10 +126,20 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 13a — Migrations
 
-**Status:** done, awaiting owner verification (sync + deploy; nothing to run on Neon)
+**Status:** done, verified by owner on Render (baseline stamped, data intact)
 
 **Delivered:** Alembic (`alembic.ini`, `migrations/env.py` bound to `SQLModel.metadata` and the app's `DATABASE_URL`). Baseline revision `05abbea478d2` recreates the pre-migration schema, and is a no-op on a database that already has it, so existing deployments are stamped without touching data. `app/database.py`: `alembic_config()` and `run_migrations()`; the lifespan runs `upgrade head` instead of `create_all`. Dockerfile copies `alembic.ini` and `migrations/`. Two tests: migrations applied to an empty database produce a schema with zero autogenerate diff against the models; the baseline preserves rows on a create_all database.
 
 **Verified:** app started against the local create_all database with data: revision stamped, rows intact. Fresh database: tables created by the migration, register returns 201. `alembic current` = head, `alembic check` clean. Suite green (91).
 
 **Known gaps:** none. Deleting a table's enum type on downgrade is handled in the baseline; later revisions must do the same when they add enums.
+
+## Phase 13b — Accounts & transfers
+
+**Status:** done, awaiting owner verification on Render (migration runs automatically on deploy)
+
+**Delivered:** `accounts` table (name unique per user, `type` enum debit/cash/other, free-text `subtype` for the bank, `opening_balance`), `account_id` on expenses and incomes (defaults to General), `transfers` table (from/to accounts, amount, date, description). `users.opening_balance` removed. Migration `4004c26c965e` creates a General account per existing user carrying their old opening balance, backfills every expense and income onto it (nullable column → backfill → NOT NULL), and its downgrade restores `users.opening_balance` from General. `services/accounts.py` seeds General at registration; `services/ledger.py` computes per-account balances (opening + income − expenses + transfers in − transfers out) with four GROUP BY queries. Endpoints: `/accounts` CRUD (General protected; delete folds opening balance, expenses, incomes into General, drops transfers between the two, re-points transfers with third accounts), `/transfers` CRUD (from ≠ to, both must be the caller's), `account_id` filters on `/expenses` and `/incomes`, `/balance` and `/summary/daily` gain `accounts`. `PATCH /me` removed (opening balance lives on accounts). App: account picker on expense and income forms (remembers last used), Transfer segment, per-account chips under the balance, transfers in today's list, Accounts tab (add / tap-to-edit / delete, Log out moved here). 16 new tests (107 total), including the data-migration test.
+
+**Verified:** app started against the local database at the baseline revision with data: migration ran, every user got General with their opening balance, no null account_ids. curl: create/duplicate/bad-type accounts, expense and income on a chosen account, default to General, foreign account 422, transfer create/filter/patch/same-account 422, balances per account with total unchanged by transfers, rename/opening patch, General delete 409, account delete folding (total unchanged before/after). Headless mobile walkthrough: add account, edit General's opening, transfer between accounts, chips and list update, logout from Accounts tab. Suite green. Migration down/up round trip on a populated scratch DB.
+
+**Known gaps:** no credit-card accounts yet (enum change is a one-line migration when wanted). Account edit form uses the same card as add; fine on mobile.

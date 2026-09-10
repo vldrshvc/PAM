@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Category, Expense, User
+from app.models import Account, Category, Expense, User
 from app.schemas import ExpenseCreate, ExpenseRead, ExpenseUpdate
 from app.security import get_current_user
+from app.services.accounts import get_general
 from app.services.categories import get_uncategorized
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -24,6 +25,18 @@ def resolve_category_id(session: Session, user_id: int, category_id: int | None)
             detail=f"Category {category_id} does not exist",
         )
     return category_id
+
+
+def resolve_account_id(session: Session, user_id: int, account_id: int | None) -> int:
+    if account_id is None:
+        return get_general(session, user_id).id
+    account = session.get(Account, account_id)
+    if account is None or account.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Account {account_id} does not exist",
+        )
+    return account_id
 
 
 def get_expense_or_404(session: Session, user_id: int, expense_id: int) -> Expense:
@@ -47,6 +60,7 @@ def create_expense(
         update={
             "user_id": user.id,
             "category_id": resolve_category_id(session, user.id, body.category_id),
+            "account_id": resolve_account_id(session, user.id, body.account_id),
         },
     )
     session.add(expense)
@@ -60,6 +74,7 @@ def list_expenses(
     date_from: date | None = Query(default=None, description="Inclusive lower bound"),
     date_to: date | None = Query(default=None, description="Inclusive upper bound"),
     category_id: int | None = None,
+    account_id: int | None = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> list[Expense]:
@@ -75,6 +90,8 @@ def list_expenses(
         statement = statement.where(Expense.date <= date_to)
     if category_id is not None:
         statement = statement.where(Expense.category_id == category_id)
+    if account_id is not None:
+        statement = statement.where(Expense.account_id == account_id)
     return list(session.exec(statement.order_by(Expense.date.desc(), Expense.id.desc())).all())
 
 
@@ -100,6 +117,8 @@ def update_expense(
     changes = body.model_dump(exclude_unset=True)
     if "category_id" in changes:
         changes["category_id"] = resolve_category_id(session, user.id, changes["category_id"])
+    if "account_id" in changes:
+        changes["account_id"] = resolve_account_id(session, user.id, changes["account_id"])
     if changes.get("price", ...) is None or changes.get("date", ...) is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

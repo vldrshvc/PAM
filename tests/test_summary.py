@@ -18,7 +18,7 @@ def seed(client, headers) -> tuple[date, date]:
 
     client.patch("/categories/2", json={"monthly_limit": 300}, headers=headers)
     client.patch("/categories/3", json={"monthly_limit": 100}, headers=headers)
-    client.patch("/me", json={"opening_balance": 100}, headers=headers)
+    client.patch("/accounts/1", json={"opening_balance": 100}, headers=headers)
     client.post("/incomes", json={"amount": 500, "date": today.isoformat(), "source": "work"}, headers=headers)
     client.post("/incomes", json={"amount": 30, "date": last_month.isoformat(), "source": "friend"}, headers=headers)
     for price, day, category in [
@@ -58,6 +58,7 @@ def test_daily_summary_shape_and_maths(client, auth):
     assert body["earned_this_month"] == "500.00"
     # 100 opening + 530 income - (287.50 + 999) expenses, all time
     assert body["balance"] == "-656.50"
+    assert [(a["name"], a["balance"]) for a in body["accounts"]] == [("General", "-656.50")]
 
 
 def test_daily_summary_is_empty_for_fresh_user(client, auth):

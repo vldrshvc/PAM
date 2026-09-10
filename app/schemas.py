@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
-from app.models import CategoryBase, ExpenseBase, ExpenseStatus, IncomeBase, IncomeSource, quantize_money
+from app.models import AccountBase, AccountType, CategoryBase, ExpenseBase, ExpenseStatus, IncomeBase, IncomeSource, TransferBase, quantize_money
 
 
 USERNAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]+")
@@ -37,22 +37,46 @@ class UserRead(SQLModel):
     username: str
 
 
-class MeRead(UserRead):
-    opening_balance: Decimal
-
-
-class MeUpdate(SQLModel):
-    opening_balance: Decimal = Field(max_digits=12, decimal_places=2)
-
-    @field_validator("opening_balance")
-    @classmethod
-    def _normalize(cls, value: Decimal) -> Decimal:
-        return quantize_money(value)
-
-
 class TokenRead(SQLModel):
     access_token: str
     token_type: Literal["bearer"]
+
+
+# --- Accounts -----------------------------------------------------------------
+
+
+class AccountCreate(AccountBase):
+    """Body for POST /accounts."""
+
+
+class AccountUpdate(SQLModel):
+    name: str | None = Field(default=None, min_length=1, max_length=50)
+    type: AccountType | None = None
+    subtype: str | None = Field(default=None, max_length=50)
+    opening_balance: Decimal | None = Field(default=None, max_digits=12, decimal_places=2)
+
+    @field_validator("name", "subtype")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @field_validator("opening_balance")
+    @classmethod
+    def _normalize_opening(cls, value: Decimal | None) -> Decimal | None:
+        return None if value is None else quantize_money(value)
+
+
+class AccountRead(AccountBase):
+    id: int
+
+
+class AccountBalanceRead(AccountRead):
+    balance: Decimal
 
 
 # --- Categories ---------------------------------------------------------------
@@ -95,9 +119,11 @@ class CategoryRead(CategoryBase):
 class ExpenseCreate(ExpenseBase):
     """Body for POST /expenses. Status is not client-settable: manual entries
     are always confirmed; pending is reserved for auto-ingested transactions.
-    Omitting category_id files the expense under "uncategorized"."""
+    Omitting category_id files the expense under "uncategorized"; omitting
+    account_id charges it to "General"."""
 
     category_id: int | None = None
+    account_id: int | None = None
 
 
 class ExpenseUpdate(SQLModel):
@@ -107,6 +133,7 @@ class ExpenseUpdate(SQLModel):
     date: dt.date | None = None
     description: str | None = Field(default=None, max_length=255)
     category_id: int | None = None
+    account_id: int | None = None
 
     @field_validator("price")
     @classmethod
@@ -117,6 +144,7 @@ class ExpenseUpdate(SQLModel):
 class ExpenseRead(ExpenseBase):
     id: int
     category_id: int
+    account_id: int
     status: ExpenseStatus
 
 
@@ -124,7 +152,9 @@ class ExpenseRead(ExpenseBase):
 
 
 class IncomeCreate(IncomeBase):
-    """Body for POST /incomes."""
+    """Body for POST /incomes. Omitting account_id credits "General"."""
+
+    account_id: int | None = None
 
 
 class IncomeUpdate(SQLModel):
@@ -132,6 +162,7 @@ class IncomeUpdate(SQLModel):
     date: dt.date | None = None
     source: IncomeSource | None = None
     description: str | None = Field(default=None, max_length=255)
+    account_id: int | None = None
 
     @field_validator("amount")
     @classmethod
@@ -141,14 +172,42 @@ class IncomeUpdate(SQLModel):
 
 class IncomeRead(IncomeBase):
     id: int
+    account_id: int
+
+
+class TransferCreate(TransferBase):
+    from_account_id: int
+    to_account_id: int
+
+
+class TransferUpdate(SQLModel):
+    amount: Decimal | None = Field(default=None, gt=0, max_digits=10, decimal_places=2)
+    date: dt.date | None = None
+    description: str | None = Field(default=None, max_length=255)
+    from_account_id: int | None = None
+    to_account_id: int | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal | None) -> Decimal | None:
+        return None if value is None else quantize_money(value)
+
+
+class TransferRead(TransferBase):
+    id: int
+    from_account_id: int
+    to_account_id: int
 
 
 class BalanceRead(SQLModel):
+    # Sum of every account's opening balance.
     opening_balance: Decimal
     income_total: Decimal
     expense_total: Decimal
-    # opening_balance + income_total - expense_total, all time.
+    # opening_balance + income_total - expense_total, all time. Transfers
+    # between accounts cancel out.
     balance: Decimal
+    accounts: list[AccountBalanceRead]
 
 
 # --- Categorization -----------------------------------------------------------
@@ -196,6 +255,7 @@ class DailySummaryRead(SQLModel):
     earned_today: Decimal
     earned_this_month: Decimal
     balance: Decimal
+    accounts: list[AccountBalanceRead]
 
 
 class MonthlySummaryRead(SQLModel):

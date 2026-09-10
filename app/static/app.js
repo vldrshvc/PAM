@@ -7,7 +7,7 @@
 const TOKEN_KEY = "pam.token";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-const state = { view: "today", kind: "expense", categories: [] };
+const state = { view: "today", kind: "expense", categories: [], accounts: [], lastAccountId: null };
 
 // --- API -----------------------------------------------------------------
 
@@ -76,7 +76,7 @@ function render(templateId) {
   return view;
 }
 
-function li({ title, sub, amount, over = false, plus = false, onDelete, bar }) {
+function li({ title, sub, amount, over = false, plus = false, muted = false, onDelete, bar }) {
   const item = document.createElement("li");
   const main = document.createElement("div");
   main.className = "main";
@@ -102,7 +102,7 @@ function li({ title, sub, amount, over = false, plus = false, onDelete, bar }) {
   item.appendChild(main);
   if (amount !== undefined) {
     const a = document.createElement("span");
-    a.className = `amount${over ? " over" : ""}${plus ? " plus" : ""}`;
+    a.className = `amount${over ? " over" : ""}${plus ? " plus" : ""}${muted ? " sub" : ""}`;
     a.textContent = amount;
     item.appendChild(a);
   }
@@ -139,7 +139,6 @@ function logout() {
 
 function showLogin() {
   $("#tabs").hidden = true;
-  $("#logout").hidden = true;
   const view = render("tpl-login");
   const form = $("#login-form", view);
 
@@ -170,13 +169,34 @@ function showLogin() {
 
 async function showApp() {
   $("#tabs").hidden = false;
-  $("#logout").hidden = false;
-  await loadCategories();
+  await Promise.all([loadCategories(), loadAccounts()]);
   await showView(state.view);
 }
 
 async function loadCategories() {
   state.categories = await api("/categories");
+}
+
+async function loadAccounts() {
+  state.accounts = await api("/accounts");
+  if (!state.accounts.some((a) => a.id === state.lastAccountId)) state.lastAccountId = state.accounts[0]?.id ?? null;
+}
+
+function accountName(id) {
+  const account = state.accounts.find((a) => a.id === id);
+  return account ? account.name : "?";
+}
+
+function renderAccountOptions(select, selectedId) {
+  select.replaceChildren(
+    ...state.accounts.map((a) => {
+      const option = document.createElement("option");
+      option.value = a.id;
+      option.textContent = a.subtype ? `${a.name} (${a.subtype})` : a.name;
+      option.selected = a.id === selectedId;
+      return option;
+    })
+  );
 }
 
 // --- views ---------------------------------------------------------------
@@ -186,7 +206,7 @@ async function showView(name) {
   for (const button of document.querySelectorAll("#tabs button")) {
     button.classList.toggle("active", button.dataset.view === name);
   }
-  const views = { today: showToday, month: showMonth, categories: showCategories };
+  const views = { today: showToday, month: showMonth, categories: showCategories, accounts: showAccounts };
   try {
     await views[name]();
   } catch (err) {
@@ -210,6 +230,12 @@ async function showToday() {
 
   $("#income-date", view).value = todayISO();
   $("#income-form", view).addEventListener("submit", addIncome);
+  renderAccountOptions($("#account", view), state.lastAccountId);
+  renderAccountOptions($("#income-account", view), state.lastAccountId);
+  $("#transfer-date", view).value = todayISO();
+  renderAccountOptions($("#transfer-from", view), state.accounts[0]?.id);
+  renderAccountOptions($("#transfer-to", view), state.accounts[1]?.id ?? state.accounts[0]?.id);
+  $("#transfer-form", view).addEventListener("submit", addTransfer);
   for (const button of view.querySelectorAll("#kind button")) {
     button.addEventListener("click", () => setKind(button.dataset.kind));
   }
@@ -225,6 +251,39 @@ function setKind(kind) {
   }
   $("#add-form").hidden = kind !== "expense";
   $("#income-form").hidden = kind !== "income";
+  $("#transfer-form").hidden = kind !== "transfer";
+}
+
+async function addTransfer(event) {
+  event.preventDefault();
+  const body = {
+    amount: $("#transfer-amount").value,
+    date: $("#transfer-date").value,
+    from_account_id: Number($("#transfer-from").value),
+    to_account_id: Number($("#transfer-to").value),
+    description: $("#transfer-description").value.trim() || null,
+  };
+  try {
+    await api("/transfers", { method: "POST", body });
+    $("#transfer-form").reset();
+    $("#transfer-date").value = todayISO();
+    renderAccountOptions($("#transfer-from"), state.accounts[0]?.id);
+    renderAccountOptions($("#transfer-to"), state.accounts[1]?.id ?? state.accounts[0]?.id);
+    toast("Moved");
+    await Promise.all([refreshSummary(), refreshTodayList()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function deleteTransfer(transfer) {
+  if (!confirm(`Delete transfer of ${money(transfer.amount)}?`)) return;
+  try {
+    await api(`/transfers/${transfer.id}`, { method: "DELETE" });
+    await Promise.all([refreshSummary(), refreshTodayList()]);
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 async function addIncome(event) {
@@ -233,12 +292,15 @@ async function addIncome(event) {
     amount: $("#income-amount").value,
     date: $("#income-date").value,
     source: $("#income-source").value,
+    account_id: Number($("#income-account").value),
     description: $("#income-description").value.trim() || null,
   };
   try {
     await api("/incomes", { method: "POST", body });
+    state.lastAccountId = body.account_id;
     $("#income-form").reset();
     $("#income-date").value = todayISO();
+    renderAccountOptions($("#income-account"), state.lastAccountId);
     toast("Income added");
     await Promise.all([refreshSummary(), refreshTodayList()]);
   } catch (err) {
@@ -275,6 +337,17 @@ async function refreshSummary() {
   $("#spent-today").textContent = money(s.spent_today);
   $("#earned-today").textContent = `+${money(s.earned_today)}`;
   $("#spent-month").textContent = money(s.spent_this_month);
+  $("#account-chips").replaceChildren(
+    ...s.accounts.map((a) => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = `${a.name} `;
+      const b = document.createElement("b");
+      b.textContent = money(a.balance);
+      chip.appendChild(b);
+      return chip;
+    })
+  );
   const remaining = $("#remaining");
   remaining.textContent = s.budget_total === "0.00" ? "no budget" : money(s.remaining_total);
   remaining.classList.toggle("over", s.over_budget);
@@ -284,15 +357,25 @@ const SOURCE_LABELS = { work: "Work", friend: "Friend", debt: "Debt", bonus: "Bo
 
 async function refreshTodayList() {
   const today = todayISO();
-  const [expenses, incomes] = await Promise.all([
+  const [expenses, incomes, transfers] = await Promise.all([
     api(`/expenses?date_from=${today}&date_to=${today}`),
     api(`/incomes?date_from=${today}&date_to=${today}`),
+    api(`/transfers?date_from=${today}&date_to=${today}`),
   ]);
   const items = [
+    ...transfers.map((t) =>
+      li({
+        title: `${accountName(t.from_account_id)} → ${accountName(t.to_account_id)}`,
+        sub: t.description || "transfer",
+        amount: money(t.amount),
+        muted: true,
+        onDelete: () => deleteTransfer(t),
+      })
+    ),
     ...incomes.map((i) =>
       li({
         title: i.description || SOURCE_LABELS[i.source],
-        sub: i.description ? SOURCE_LABELS[i.source] : "",
+        sub: [i.description ? SOURCE_LABELS[i.source] : "", accountName(i.account_id)].filter(Boolean).join(" · "),
         amount: `+${money(i.amount)}`,
         plus: true,
         onDelete: () => deleteIncome(i),
@@ -301,7 +384,7 @@ async function refreshTodayList() {
     ...expenses.map((e) =>
       li({
         title: e.description || categoryName(e.category_id),
-        sub: e.description ? categoryName(e.category_id) : "",
+        sub: [e.description ? categoryName(e.category_id) : "", accountName(e.account_id)].filter(Boolean).join(" · "),
         amount: money(e.price),
         onDelete: () => deleteExpense(e),
       })
@@ -346,14 +429,17 @@ async function addExpense(event) {
     price: $("#price").value,
     date: $("#date").value,
     category_id: Number($("#category").value),
+    account_id: Number($("#account").value),
     description: $("#description").value.trim() || null,
   };
   try {
     await api("/expenses", { method: "POST", body });
+    state.lastAccountId = body.account_id;
     $("#add-form").reset();
     $("#date").value = todayISO();
     $("#suggest-note").hidden = true;
     renderCategoryOptions($("#category"));
+    renderAccountOptions($("#account"), state.lastAccountId);
     toast("Added");
     await Promise.all([refreshSummary(), refreshTodayList()]);
   } catch (err) {
@@ -415,24 +501,85 @@ async function showCategories() {
     }
   });
   renderCategoryList();
-  await refreshOpeningBalance();
-  $("#opening-row", view).addEventListener("click", editOpeningBalance);
 }
 
-async function refreshOpeningBalance() {
-  const me = await api("/me");
-  $("#opening-amount").textContent = money(me.opening_balance);
-  $("#opening-sub").textContent = "what you had before your first entry · tap to change";
+// --- accounts ------------------------------------------------------------
+
+const TYPE_LABELS = { debit: "Debit card", cash: "Cash", other: "Other" };
+
+async function showAccounts() {
+  const view = render("tpl-accounts");
+  $("#acc-form", view).addEventListener("submit", saveAccount);
+  $("#acc-cancel", view).addEventListener("click", () => resetAccountForm());
+  $("#logout", view).addEventListener("click", logout);
+  await loadAccounts();
+  renderAccountList();
 }
 
-async function editOpeningBalance() {
-  const current = $("#opening-amount").textContent.replace("€", "");
-  const input = prompt("Opening balance (can be negative):", current);
-  if (input === null || input.trim() === "") return;
+function resetAccountForm() {
+  const form = $("#acc-form");
+  form.reset();
+  $("#acc-id").value = "";
+  $("#acc-submit").textContent = "Add account";
+  $("#acc-cancel").hidden = true;
+}
+
+function editAccount(account) {
+  $("#acc-id").value = account.id;
+  $("#acc-name").value = account.name;
+  $("#acc-type").value = account.type;
+  $("#acc-subtype").value = account.subtype || "";
+  $("#acc-opening").value = account.opening_balance;
+  $("#acc-submit").textContent = "Save";
+  $("#acc-cancel").hidden = false;
+  $("#acc-name").focus();
+}
+
+async function saveAccount(event) {
+  event.preventDefault();
+  const id = $("#acc-id").value;
+  const body = {
+    name: $("#acc-name").value.trim(),
+    type: $("#acc-type").value,
+    subtype: $("#acc-subtype").value.trim() || null,
+    opening_balance: $("#acc-opening").value || "0",
+  };
   try {
-    await api("/me", { method: "PATCH", body: { opening_balance: input.trim() } });
-    await refreshOpeningBalance();
-    toast("Opening balance saved");
+    if (id) {
+      await api(`/accounts/${id}`, { method: "PATCH", body });
+      toast("Account saved");
+    } else {
+      await api("/accounts", { method: "POST", body });
+      toast("Account added");
+    }
+    resetAccountForm();
+    await loadAccounts();
+    renderAccountList();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderAccountList() {
+  const items = state.accounts.map((a) =>
+    li({
+      title: a.subtype ? `${a.name} · ${a.subtype}` : a.name,
+      sub: `${TYPE_LABELS[a.type]} · opening ${money(a.opening_balance)}`,
+      amount: money(a.balance),
+      over: Number(a.balance) < 0,
+      onDelete: a.name === "General" ? undefined : () => deleteAccount(a),
+    })
+  );
+  items.forEach((item, i) => item.querySelector(".main").addEventListener("click", () => editAccount(state.accounts[i])));
+  fillList($("#acc-list"), items, "No accounts.");
+}
+
+async function deleteAccount(account) {
+  if (!confirm(`Delete "${account.name}"? Its history and opening balance move to General.`)) return;
+  try {
+    await api(`/accounts/${account.id}`, { method: "DELETE" });
+    await loadAccounts();
+    renderAccountList();
   } catch (err) {
     toast(err.message, true);
   }
@@ -478,7 +625,6 @@ async function deleteCategory(category) {
 // --- boot ----------------------------------------------------------------
 
 document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
-$("#logout").addEventListener("click", logout);
 
 if (localStorage.getItem(TOKEN_KEY)) {
   showApp().catch(() => showLogin());

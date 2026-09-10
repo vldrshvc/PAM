@@ -1,7 +1,7 @@
 def test_create_income_defaults_and_formatting(client, auth):
     response = client.post("/incomes", json={"amount": 500, "date": "2026-09-10", "description": "client"}, headers=auth())
     assert response.status_code == 201
-    assert response.json() == {"id": 1, "amount": "500.00", "date": "2026-09-10", "source": "work", "description": "client"}
+    assert response.json() == {"id": 1, "amount": "500.00", "date": "2026-09-10", "source": "work", "description": "client", "account_id": 1}
 
 
 def test_create_income_validation(client, auth):

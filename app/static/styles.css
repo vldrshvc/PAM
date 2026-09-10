@@ -16,7 +16,12 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .tabs { display: flex; gap: 4px; margin-left: auto; }
 .tabs button { background: transparent; color: #d8e7e2; border: 0; padding: 6px 8px; border-radius: 8px; font-weight: 600; }
 .tabs button.active { background: rgba(255,255,255,.18); color: #fff; }
-.link { background: none; border: 0; color: #d8e7e2; font-size: 14px; white-space: nowrap; padding: 6px 0; }
+.tabs button { white-space: nowrap; }
+.arrow { flex: 0 0 auto; align-self: center; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+.chip b { color: var(--ink); }
+button.danger { width: 100%; color: var(--danger); border-color: var(--danger); }
 main { max-width: 560px; margin: 0 auto; padding: 12px; display: grid; gap: 12px; }
 .card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
 .card.narrow { max-width: 360px; margin: 48px auto; }

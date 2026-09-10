@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from app.database import get_session
 from app.models import Income, IncomeSource, User
 from app.schemas import IncomeCreate, IncomeRead, IncomeUpdate
+from app.routers.expenses import resolve_account_id
 from app.security import get_current_user
 
 router = APIRouter(prefix="/incomes", tags=["incomes"])
@@ -24,7 +25,10 @@ def create_income(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> Income:
-    income = Income.model_validate(body, update={"user_id": user.id})
+    income = Income.model_validate(
+        body,
+        update={"user_id": user.id, "account_id": resolve_account_id(session, user.id, body.account_id)},
+    )
     session.add(income)
     session.commit()
     session.refresh(income)
@@ -36,6 +40,7 @@ def list_incomes(
     date_from: date | None = Query(default=None, description="Inclusive lower bound"),
     date_to: date | None = Query(default=None, description="Inclusive upper bound"),
     source: IncomeSource | None = None,
+    account_id: int | None = None,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> list[Income]:
@@ -51,6 +56,8 @@ def list_incomes(
         statement = statement.where(Income.date <= date_to)
     if source is not None:
         statement = statement.where(Income.source == source)
+    if account_id is not None:
+        statement = statement.where(Income.account_id == account_id)
     return list(session.exec(statement.order_by(Income.date.desc(), Income.id.desc())).all())
 
 
@@ -70,11 +77,13 @@ def update_income(
 ) -> Income:
     income = get_income_or_404(session, user.id, income_id)
     changes = body.model_dump(exclude_unset=True)
-    if any(changes.get(field, ...) is None for field in ("amount", "date", "source")):
+    if any(changes.get(field, ...) is None for field in ("amount", "date", "source", "account_id")):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="amount, date and source cannot be null",
+            detail="amount, date, source and account_id cannot be null",
         )
+    if "account_id" in changes:
+        resolve_account_id(session, user.id, changes["account_id"])
     income.sqlmodel_update(changes)
     session.add(income)
     session.commit()

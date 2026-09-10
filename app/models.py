@@ -35,9 +35,52 @@ class User(SQLModel, table=True):
     username: str = Field(min_length=3, max_length=50, unique=True, index=True)
     # Only ever an argon2id hash; the plaintext never touches this model.
     hashed_password: str
-    # What was in the account before the first recorded transaction, so the
+
+
+class AccountType(str, Enum):
+    DEBIT = "debit"
+    CASH = "cash"
+    OTHER = "other"
+
+
+class AccountBase(SQLModel):
+    name: str = Field(min_length=1, max_length=50)
+    type: AccountType = AccountType.DEBIT
+    # Free text because it is a bank or provider name: "AIB", "Revolut".
+    subtype: str | None = Field(default=None, max_length=50)
+    # What was in this account before its first recorded transaction, so the
     # computed balance matches reality. May be negative (overdrawn).
     opening_balance: Decimal = Field(default=Decimal("0.00"), max_digits=12, decimal_places=2)
+
+    @field_validator("name", "subtype")
+    @classmethod
+    def _strip(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        return stripped
+
+    @field_validator("opening_balance")
+    @classmethod
+    def _normalize_opening(cls, value: Decimal) -> Decimal:
+        return quantize_money(value)
+
+
+class Account(AccountBase, table=True):
+    __tablename__ = "accounts"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_accounts_user_name"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    type: AccountType = Field(
+        default=AccountType.DEBIT,
+        sa_column=Column(
+            SAEnum(AccountType, name="account_type", values_callable=lambda e: [m.value for m in e]),
+            nullable=False,
+        ),
+    )
 
 
 class CategoryBase(SQLModel):
@@ -86,6 +129,7 @@ class Income(IncomeBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+    account_id: int = Field(foreign_key="accounts.id", index=True)
     source: IncomeSource = Field(
         default=IncomeSource.WORK,
         sa_column=Column(
@@ -114,6 +158,7 @@ class Expense(ExpenseBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+    account_id: int = Field(foreign_key="accounts.id", index=True)
     category_id: int = Field(foreign_key="categories.id", index=True)
     # values_callable: store "confirmed" in Postgres, not the member name
     # "CONFIRMED", so the column reads the same as the API.
@@ -124,3 +169,26 @@ class Expense(ExpenseBase, table=True):
             nullable=False,
         ),
     )
+
+
+class TransferBase(SQLModel):
+    amount: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
+    date: date
+    description: str | None = Field(default=None, max_length=255)
+
+    @field_validator("amount")
+    @classmethod
+    def _normalize_amount(cls, value: Decimal) -> Decimal:
+        return quantize_money(value)
+
+
+class Transfer(TransferBase, table=True):
+    """Money moved between two of the user's own accounts. Neither income
+    nor expense: it changes account balances but never the total."""
+
+    __tablename__ = "transfers"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="users.id", index=True)
+    from_account_id: int = Field(foreign_key="accounts.id", index=True)
+    to_account_id: int = Field(foreign_key="accounts.id", index=True)

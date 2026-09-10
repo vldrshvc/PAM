@@ -8,10 +8,10 @@ from sqlmodel import Session, select
 
 from app.database import get_session
 from app.models import Category, Expense, ExpenseStatus, User
-from app.schemas import CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead
+from app.schemas import AccountBalanceRead, CategoryBudgetRead, DailySummaryRead, MonthlySummaryRead
 from app.security import get_current_user
 from app.services.budget import budget_totals, month_bounds, today_in
-from app.services.ledger import current_balance, expense_total, income_total
+from app.services.ledger import account_balances, current_balance, expense_total, income_total
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -75,7 +75,11 @@ def daily_summary(
         categories=[CategoryBudgetRead.model_validate(c, from_attributes=True) for c in budgeted],
         earned_today=income_total(session, user.id, today, today),
         earned_this_month=income_total(session, user.id, month_start, month_end),
-        balance=current_balance(session, user),
+        balance=current_balance(session, user.id),
+        accounts=[
+            AccountBalanceRead.model_validate(e.account, update={"balance": e.balance})
+            for e in account_balances(session, user.id)
+        ],
     )
 
 
@@ -106,5 +110,5 @@ def monthly_summary(
         over_budget=totals.over_budget,
         categories=[CategoryBudgetRead.model_validate(c, from_attributes=True) for c in totals.categories],
         earned_total=income_total(session, user.id, start, end),
-        balance=current_balance(session, user),
+        balance=current_balance(session, user.id),
     )

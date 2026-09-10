@@ -7,6 +7,7 @@ from app.database import get_session
 from app.models import User
 from app.schemas import TokenRead, UserCreate, UserRead
 from app.security import create_access_token, hash_password, verify_password
+from app.services.accounts import seed_general_account
 from app.services.categories import seed_default_categories
 
 router = APIRouter(tags=["auth"])
@@ -30,6 +31,7 @@ def register(body: UserCreate, session: Session = Depends(get_session)) -> User:
     # land in the same transaction: no user without an "uncategorized".
     session.flush()
     seed_default_categories(session, user.id)
+    seed_general_account(session, user.id)
     session.commit()
     session.refresh(user)
     return user

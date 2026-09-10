@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import run_migrations, wait_for_db
-from app.routers import account, auth, categories, categorize, expenses, health, incomes, summary
+from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, summary, transfers
 
 
 # Uvicorn configures only its own loggers; give the app's loggers a
@@ -26,7 +26,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Personal Finance Tracker",
     description="Self-hosted expense tracker with LLM categorization and a daily summary for an Android widget.",
-    version="0.9.0",
+    version="0.10.0",
     lifespan=lifespan,
 )
 
@@ -35,6 +35,8 @@ app.include_router(auth.router)
 app.include_router(account.router)
 app.include_router(expenses.router)
 app.include_router(incomes.router)
+app.include_router(accounts.router)
+app.include_router(transfers.router)
 app.include_router(categories.router)
 app.include_router(summary.router)
 app.include_router(categorize.router)

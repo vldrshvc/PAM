@@ -17,8 +17,8 @@
       <button data-view="today" class="active">Today</button>
       <button data-view="month">Month</button>
       <button data-view="categories">Categories</button>
+      <button data-view="accounts">Accounts</button>
     </nav>
-    <button id="logout" class="link" hidden>Log out</button>
   </header>
 
   <main id="view"></main>
@@ -47,12 +47,14 @@
         <div><span class="label">Spent this month</span><span id="spent-month">–</span></div>
         <div><span class="label">Budget left</span><span id="remaining" class="remaining">–</span></div>
       </div>
+      <div id="account-chips" class="chips"></div>
     </section>
 
     <section class="card">
       <div class="segmented" id="kind">
         <button type="button" data-kind="expense" class="active">Expense</button>
         <button type="button" data-kind="income">Income</button>
+        <button type="button" data-kind="transfer">Transfer</button>
       </div>
       <form id="add-form" class="stack">
         <div class="row">
@@ -65,8 +67,9 @@
         </div>
         <div class="row">
           <input id="date" type="date" required>
-          <input id="description" placeholder="Description (optional)" maxlength="255">
+          <select id="account" required></select>
         </div>
+        <input id="description" placeholder="Description (optional)" maxlength="255">
         <p id="suggest-note" class="note" hidden></p>
         <button type="submit" class="primary">Add expense</button>
       </form>
@@ -83,9 +86,23 @@
         </div>
         <div class="row">
           <input id="income-date" type="date" required>
-          <input id="income-description" placeholder="Description (optional)" maxlength="255">
+          <select id="income-account" required></select>
         </div>
+        <input id="income-description" placeholder="Description (optional)" maxlength="255">
         <button type="submit" class="primary">Add income</button>
+      </form>
+      <form id="transfer-form" class="stack" hidden>
+        <div class="row">
+          <select id="transfer-from" required></select>
+          <span class="arrow">→</span>
+          <select id="transfer-to" required></select>
+        </div>
+        <div class="row">
+          <input id="transfer-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+          <input id="transfer-date" type="date" required>
+        </div>
+        <input id="transfer-description" placeholder="Description (optional)" maxlength="255">
+        <button type="submit" class="primary">Move money</button>
       </form>
     </section>
 
@@ -119,9 +136,36 @@
     <section class="card">
       <ul id="cat-list" class="list"></ul>
     </section>
+  </template>
+
+  <template id="tpl-accounts">
     <section class="card">
-      <h2>Account</h2>
-      <ul class="list"><li id="opening-row"><div class="main"><div class="title">Opening balance</div><div class="sub" id="opening-sub">tap to set</div></div><span class="amount" id="opening-amount">–</span></li></ul>
+      <form id="acc-form" class="stack">
+        <input type="hidden" id="acc-id">
+        <div class="row">
+          <input id="acc-name" placeholder="Account name" required maxlength="50">
+          <select id="acc-type" required>
+            <option value="debit">Debit card</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="row">
+          <input id="acc-subtype" placeholder="Bank (e.g. AIB, Revolut)" maxlength="50">
+          <input id="acc-opening" type="number" inputmode="decimal" step="0.01" placeholder="Opening balance">
+        </div>
+        <div class="row">
+          <button type="submit" class="primary" id="acc-submit">Add account</button>
+          <button type="button" id="acc-cancel" hidden>Cancel</button>
+        </div>
+      </form>
+    </section>
+    <section class="card">
+      <ul id="acc-list" class="list"></ul>
+      <p class="note">Tap an account to edit it. Opening balance is what it held before your first entry here.</p>
+    </section>
+    <section class="card">
+      <button id="logout" class="danger">Log out</button>
     </section>
   </template>
 
