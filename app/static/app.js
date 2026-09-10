@@ -257,7 +257,7 @@ async function suggest() {
     const result = await api("/categorize", { method: "POST", body: { text } });
     if (result.amount) $("#price").value = result.amount;
     renderCategoryOptions($("#category"), result.category.id);
-    if (!$("#description").value) $("#description").value = text.replace(/[€$£]?\s*\d+([.,]\d{1,2})?\s*(eur|euro|euros)?/i, "").trim();
+    $("#description").value = text.replace(/[€$£]?\s*\d+([.,]\d{1,2})?\s*(eur|euro|euros)?/i, "").trim();
     note.textContent = result.fell_back
       ? "Couldn't match a category, pick one yourself."
       : `Suggested: ${result.category.name}`;
