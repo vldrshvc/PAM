@@ -7,10 +7,13 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move
 **Live:** https://pam-u8qh.onrender.com/app/ (mobile web app) and https://pam-u8qh.onrender.com/docs (API). Free tier: the first request after 15 idle minutes takes about a minute to wake.
 
 <p>
-  <img src="docs/app-today.png" width="230" alt="Today: spent, quick add with suggested category, today's list">
-  <img src="docs/app-month.png" width="230" alt="Month: spend vs limit per category">
-  <img src="docs/app-accounts.png" width="230" alt="Accounts: balances, add, edit, delete">
+  <img src="docs/app-today.png" width="220" alt="Today: balance, quick add with suggested category, today's entries, targets">
+  <img src="docs/app-month.png" width="220" alt="Month: spend against each category limit, overspend circled">
+  <img src="docs/app-today-dark.png" width="220" alt="The same screen in dark mode">
 </p>
+
+Styled as a paper notebook, light and dark. The rules behind it are in
+[docs/STYLE.md](docs/STYLE.md).
 
 ## Stack
 
@@ -22,6 +25,7 @@ Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move
 | Auth | OAuth2 password flow, JWT (HS256), argon2id hashes | Standard flow, works with the Swagger "Authorize" button |
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
+| Design | Hand-rolled CSS, subsetted embedded fonts | Notebook skin, light and dark, WCAG AA verified in-browser |
 | Tests | pytest, 127 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 

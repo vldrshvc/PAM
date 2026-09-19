@@ -159,3 +159,40 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 **Verified:** live curl: 30-day target €300 above balance → €10.00/day; €60 income → €8.00/day, on track; PATCH amount down → achieved; end before start → 422; summary carries targets. Headless walkthrough: set target, per-day figure drops after adding income, status chip renders. Suite green.
 
 **Known gaps:** targets are balance-based only (the owner's choice); an "earned since start" variant would be one enum field. No edit form in the app; PATCH exists in the API.
+
+## Phase 14 — Notebook restyle
+
+**Status:** done, awaiting owner verification on the phone
+
+**Delivered:** `app/static/styles.css` rewritten around semantic tokens with a
+light and a dark theme (`prefers-color-scheme`), plus `app/static/fonts.css`:
+Inter (400/600/700) and Caveat (500/700), subsetted to the characters the app
+renders and embedded as base64, 184 KB, no third-party request. Handwriting is
+restricted to titles, labels, status pills, buttons and empty states; every
+figure, row title and secondary amount is Inter with tabular figures. Paper
+grain, a red margin rule, washi tape that varies by card, and a spiral binding
+with a punched-hole shadow on the cover. Hand-drawn SVG masks for the title
+squiggle, the circle around an overspent amount, the achieved checkmark and the
+delete cross. Motion under 250ms: page-turn on view change, ink-fill on bars,
+a press state on buttons, all off under `prefers-reduced-motion`. Icon, manifest
+colours and the two `theme-color` metas updated. Style guide in `docs/STYLE.md`.
+
+**Verified in the browser at 390px, both themes:** every amount column starts at
+the same pixel (253.1) and every progress bar is the same width (198.6); the
+smallest control is 44px; no horizontal overflow; twelve text styles measured
+against their composited background all clear WCAG AA (worst case 5.56 light,
+5.65 dark). The full functional walkthrough still passes end to end with no
+console errors, and the suite is green.
+
+**Known gaps:** no in-app theme toggle, the theme follows the system. The
+month-change animation is the generic view transition, not a true page flip.
+
+## Fix — default account identified by a flag
+
+Found while seeding demo data for the restyle: renaming the seeded "General"
+account to a real bank name broke every expense or income created without an
+explicit account, because the fallback was looked up by that literal name and
+raised, surfacing as a 500. Accounts now carry `is_default`, set at
+registration and backfilled by migration `cdf791184e60` for the oldest account
+of each existing user; the delete guard and the client's protected row read the
+flag. Regression test added.

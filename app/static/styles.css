@@ -23,6 +23,13 @@
   --green: #2f6b4f;         /* income, on track */
   --brick: #a6402f;         /* overspent, destructive */
 
+  /* Filled surfaces need their own pair: the accent that reads well as text
+     on paper is not the one that reads well behind text. */
+  --accent-bg: #1f3a5f;
+  --accent-fg: #fdfaf2;
+  --green-bg: #2f6b4f;
+  --green-fg: #f4fbf7;
+
   /* Lines and fills */
   --rule: #cfdce9;          /* ruled line */
   --margin-rule: #e6b0aa;   /* the red margin ruled down the left */
@@ -61,6 +68,11 @@
     --green: #86bb9c;
     --brick: #e0897c;
 
+    --accent-bg: #2f5480;
+    --accent-fg: #f3ece0;
+    --green-bg: #2f6048;
+    --green-fg: #eaf6ef;
+
     --rule: #3b332a;
     --margin-rule: #6b423c;
     --track: #322a22;
@@ -97,7 +109,8 @@ body::before {
   display: flex; align-items: flex-end; gap: var(--s3);
   padding: var(--s3) var(--s4) 14px;
   padding-top: calc(var(--s3) + env(safe-area-inset-top));
-  background: linear-gradient(180deg, var(--cover-hi), var(--cover));
+  background-color: var(--cover);
+  background-image: linear-gradient(180deg, var(--cover-hi), var(--cover));
   color: #fff; overflow: hidden;
   box-shadow: 0 2px 6px rgba(20, 30, 45, .28);
 }
@@ -267,7 +280,7 @@ button {
   box-shadow: 0 1px 0 rgba(63, 52, 33, .12);
 }
 button:active { transform: translateY(1px); box-shadow: inset 0 1px 2px rgba(63, 52, 33, .18); }
-button.primary { background: var(--ink-blue); border-color: var(--ink-blue); color: #fdfaf2; }
+button.primary { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--accent-fg); }
 button:disabled { opacity: .55; }
 button.danger { width: 100%; color: var(--brick); border-color: var(--brick); background: var(--field); }
 
@@ -279,7 +292,7 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
   flex: 1; border: 0; border-radius: 0; box-shadow: none;
   background: transparent; color: var(--pencil); font-weight: 500;
 }
-.segmented button.active { background: var(--ink-blue); color: #fdfaf2; font-weight: 700; }
+.segmented button.active { background: var(--accent-bg); color: var(--accent-fg); font-weight: 700; }
 
 /* ---------- lists ----------------------------------------------------- */
 
@@ -310,11 +323,11 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 .list .amount.over, .split .remaining.over {
   color: var(--brick);
 }
-.list .amount.over {
-  position: relative; padding: 2px 10px; margin-right: -4px;
-}
+/* The circle is drawn around the figure as an overlay, so it never changes
+   the width of the amount column and the rows stay aligned. */
+.list .amount.over { position: relative; }
 .list .amount.over::after {
-  content: ""; position: absolute; inset: -3px -2px;
+  content: ""; position: absolute; inset: -6px -6px; pointer-events: none;
   background: var(--brick); opacity: .75;
   -webkit-mask: var(--circle-doodle) center / 100% 100% no-repeat;
   mask: var(--circle-doodle) center / 100% 100% no-repeat;
@@ -368,7 +381,7 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 .status.behind { background: color-mix(in srgb, var(--brick) 16%, transparent); color: var(--brick); }
 .status.achieved {
   display: inline-flex; align-items: center; gap: 5px;
-  background: var(--green); color: #fdfaf2;
+  background: var(--green-bg); color: var(--green-fg);
 }
 /* A ticked-off item gets a checkmark doodle. */
 .status.achieved::before {
