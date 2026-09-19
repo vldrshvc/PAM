@@ -112,13 +112,13 @@ Build order follows `finance-tracker-spec.md` section 6. One phase per commit.
 
 ## Phase 11b — Android app and widget
 
-**Status:** code written, awaiting owner build (no Android SDK in the build sandbox; Google's Maven is blocked there)
+**Status:** done, built and verified by owner on a Galaxy S25 (Android 16). Two fixes were needed at build time: compileSdk raised to 36 (androidx.browser 1.9.x requires it) and the token store rewritten for the stable security-crypto 1.0.0 API (MasterKey.Builder only exists in the 1.1.0 alphas).
 
 **Delivered:** `android/` Gradle project (AGP 8.9.2, Gradle 8.11.1 wrapper, Kotlin 2.1.21, minSdk 26, compileSdk 35). The app is a Trusted Web Activity: `com.google.androidbrowserhelper.trusted.LauncherActivity` declared in the manifest with the server URL as metadata, translucent theme, asset statement pointing at the site. The widget is Kotlin + Glance 1.1.1: `Api` (HttpURLConnection, `/token` and `/summary/daily`), `Store` (EncryptedSharedPreferences for token, cached summary, last error), `RefreshWorker` (WorkManager, periodic 30 min + one-shot after login, clears the token on 401), `PamWidget` (balance, spent/earned today, budget left, first target's per-day line, updated time, tap opens the app or the login), `PamWidgetReceiver` (schedules/cancels work), `WidgetConfigActivity` (login dialog on placement). Backend: `/.well-known/assetlinks.json` served from `ANDROID_PACKAGE_NAME` + `ANDROID_CERT_FINGERPRINTS` (404 until set), 3 tests. `android/README.md` covers install, USB debugging, the keytool fingerprint step and layout.
 
-**Verified:** XML resources well-formed, asset statement JSON valid, wrapper generated, backend route tested. Kotlin NOT compiled here; owner builds in Android Studio and reports errors.
+**Verified:** builds and installs from Android Studio; app launches the web client; widget places, logs in and shows the balance; `/.well-known/assetlinks.json` served from the debug keystore fingerprint so Chrome drops its URL bar. Kotlin was never compiled in the build sandbox (no Android SDK, Google's Maven blocked); the two errors above came back from the owner's machine.
 
-**Known gaps:** widget shows only the first target. No adaptive launcher icon (plain vector). Release signing not set up (debug builds only).
+**Known gaps:** widget shows only the first target. No adaptive launcher icon (plain vector). Release signing not set up: debug builds only, so `ANDROID_CERT_FINGERPRINTS` holds one fingerprint; a release or Play build adds its own, comma-separated.
 
 ## Phase 12 — Income & balance
 
