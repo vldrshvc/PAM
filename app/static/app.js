@@ -254,9 +254,15 @@ function renderTargets(targets) {
   const list = $("#target-list");
   if (!list) return;
   const items = targets.map((t) => {
+    const by = new Date(`${t.end_date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
     const item = li({
-      title: `${t.name} · ${money(t.amount)} by ${new Date(`${t.end_date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`,
-      sub: t.status === "achieved" ? "Reached." : t.status === "expired" ? `Missed by ${money(t.remaining)}.` : `${money(t.remaining)} to go · ${t.days_left} day${t.days_left === 1 ? "" : "s"} left`,
+      title: t.name,
+      sub:
+        t.status === "achieved"
+          ? `${money(t.amount)} · reached`
+          : t.status === "expired"
+            ? `${money(t.amount)} by ${by} · missed by ${money(t.remaining)}`
+            : `${money(t.amount)} by ${by} · ${money(t.remaining)} to go, ${t.days_left} day${t.days_left === 1 ? "" : "s"} left`,
       bar: Number(t.amount) > 0 ? Math.max(0, (Number(t.current_balance) / Number(t.amount)) * 100) : 0,
       onDelete: () => deleteTarget(t),
     });
