@@ -74,6 +74,10 @@ class Account(AccountBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
+    # The fallback for entries with no account, and the one that absorbs a
+    # deleted account's history. Not client-settable, and not derived from the
+    # name, because users rename it to their real bank.
+    is_default: bool = Field(default=False)
     type: AccountType = Field(
         default=AccountType.DEBIT,
         sa_column=Column(

@@ -74,6 +74,7 @@ class AccountUpdate(SQLModel):
 
 class AccountRead(AccountBase):
     id: int
+    is_default: bool
 
 
 class AccountBalanceRead(AccountRead):

@@ -638,7 +638,7 @@ function renderAccountList() {
       sub: `${TYPE_LABELS[a.type]} · opening ${money(a.opening_balance)}`,
       amount: money(a.balance),
       over: Number(a.balance) < 0,
-      onDelete: a.name === "General" ? undefined : () => deleteAccount(a),
+      onDelete: a.is_default ? undefined : () => deleteAccount(a),
     })
   );
   items.forEach((item, i) => item.querySelector(".main").addEventListener("click", () => editAccount(state.accounts[i])));
@@ -646,7 +646,7 @@ function renderAccountList() {
 }
 
 async function deleteAccount(account) {
-  if (!confirm(`Delete "${account.name}"? Its history and opening balance move to General.`)) return;
+  if (!confirm(`Delete "${account.name}"? Its history and opening balance move to your default account.`)) return;
   try {
     await api(`/accounts/${account.id}`, { method: "DELETE" });
     await loadAccounts();

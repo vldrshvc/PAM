@@ -6,7 +6,7 @@ from app.database import get_session
 from app.models import Account, Expense, Income, Transfer, User
 from app.schemas import AccountBalanceRead, AccountCreate, AccountRead, AccountUpdate
 from app.security import get_current_user
-from app.services.accounts import GENERAL_NAME, find_by_name, get_general
+from app.services.accounts import default_account, find_by_name
 from app.services.ledger import account_balances
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -84,11 +84,11 @@ def delete_account(
     account_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)
 ) -> Response:
     account = get_account_or_404(session, user.id, account_id)
-    general = get_general(session, user.id)
+    general = default_account(session, user.id)
     if account.id == general.id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f'"{GENERAL_NAME}" is the default account and cannot be deleted',
+            detail=f'"{account.name}" is your default account and cannot be deleted',
         )
     # Its history becomes General's history: the opening balance and every
     # expense and income move over, transfers to/from General vanish (the

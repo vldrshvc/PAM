@@ -7,7 +7,7 @@ from app.database import get_session
 from app.models import Account, Category, Expense, User
 from app.schemas import ExpenseCreate, ExpenseRead, ExpenseUpdate
 from app.security import get_current_user
-from app.services.accounts import get_general
+from app.services.accounts import default_account
 from app.services.categories import get_uncategorized
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -29,7 +29,7 @@ def resolve_category_id(session: Session, user_id: int, category_id: int | None)
 
 def resolve_account_id(session: Session, user_id: int, account_id: int | None) -> int:
     if account_id is None:
-        return get_general(session, user_id).id
+        return default_account(session, user_id).id
     account = session.get(Account, account_id)
     if account is None or account.user_id != user_id:
         raise HTTPException(

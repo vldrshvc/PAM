@@ -1,6 +1,7 @@
-def test_registration_seeds_general_account(client, auth):
+def test_registration_seeds_one_default_account(client, auth):
     body = client.get("/accounts", headers=auth()).json()
-    assert body == [{"id": 1, "name": "General", "type": "debit", "subtype": None, "opening_balance": "0.00", "balance": "0.00"}]
+    assert body == [{"id": 1, "name": "General", "type": "debit", "subtype": None,
+                     "opening_balance": "0.00", "balance": "0.00", "is_default": True}]
 
 
 def test_create_account_with_type_subtype_and_opening_balance(client, auth):
@@ -8,7 +9,8 @@ def test_create_account_with_type_subtype_and_opening_balance(client, auth):
         "/accounts", json={"name": "Revolut", "type": "debit", "subtype": "Revolut", "opening_balance": 200}, headers=auth()
     )
     assert response.status_code == 201
-    assert response.json() == {"id": 2, "name": "Revolut", "type": "debit", "subtype": "Revolut", "opening_balance": "200.00"}
+    assert response.json() == {"id": 2, "name": "Revolut", "type": "debit", "subtype": "Revolut",
+                               "opening_balance": "200.00", "is_default": False}
 
 
 def test_create_account_validation(client, auth):
@@ -54,8 +56,25 @@ def test_cannot_use_another_users_account(client, auth):
     assert client.delete(f"/accounts/{vlad_cash}", headers=bob).status_code == 404
 
 
-def test_delete_general_is_409(client, auth):
+def test_delete_default_account_is_409(client, auth):
     assert client.delete("/accounts/1", headers=auth()).status_code == 409
+
+
+def test_default_account_survives_being_renamed(client, auth):
+    """Everyone renames "General" to their real bank; entries with no account
+    must still land there instead of failing."""
+    headers = auth()
+    client.patch("/accounts/1", json={"name": "AIB", "subtype": "AIB"}, headers=headers)
+
+    expense = client.post("/expenses", json={"price": 5, "date": "2026-09-10"}, headers=headers)
+    income = client.post("/incomes", json={"amount": 9, "date": "2026-09-10"}, headers=headers)
+
+    assert expense.status_code == 201 and expense.json()["account_id"] == 1
+    assert income.status_code == 201 and income.json()["account_id"] == 1
+    assert client.delete("/accounts/1", headers=headers).status_code == 409
+    # And a second account, added later, is not the default.
+    other = client.post("/accounts", json={"name": "Cash", "type": "cash"}, headers=headers).json()
+    assert other["is_default"] is False
 
 
 def test_delete_account_folds_its_history_into_general(client, auth):
