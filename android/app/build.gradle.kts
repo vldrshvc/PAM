@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "ie.yarodev.pam"
-    compileSdk = 35
+    // 36 because androidbrowserhelper pulls androidx.browser 1.9.x, which
+    // requires it. targetSdk stays at 35: compiling against newer APIs is
+    // independent of opting in to newer runtime behaviour.
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ie.yarodev.pam"
