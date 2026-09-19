@@ -13,10 +13,14 @@ single component block, so changing the look means changing values, not markup.
    handwritten digits are ambiguous and money must not be.
 2. **One dominant number per card.** The balance is 42px; the four supporting
    figures are 20px; row amounts are 16px. The eye should land once.
-3. **Columns, not guesses.** Amounts sit in a fixed 104px right-aligned column,
-   so every amount and every progress bar starts and ends on the same pixel.
+3. **Columns, not guesses.** Amounts sit in a right-aligned column at least
+   104px wide, so every amount and every progress bar starts and ends on the
+   same pixel — measured, not eyeballed.
 4. **Nothing decorative may move layout.** The overspend circle, the tape and
    the grain are overlays drawn outside the flow.
+5. **Identity on top, navigation under the thumb.** The cover carries the logo,
+   the name and the current screen; moving between screens happens in a fixed
+   bottom bar, where a thumb reaches without crossing the screen.
 
 ## Colour
 
@@ -53,20 +57,22 @@ Checked in the browser against the actual composited background, both themes:
 | Balance, row title, heading | 14.5 | 13.5 | 3.0 |
 | Labels, row subtitle, amount, note | 5.6 | 6.2 | 4.5 |
 | Primary button, active segment | 11.0 | 6.6 | 3.0 |
-| Active / inactive tab | 11.2 / 8.9 | 8.4 / 11.0 | 3.0 / 4.5 |
+| Active / inactive tab | 11.2 / 5.6 | 8.4 / 6.2 | 3.0 / 4.5 |
 | Account chip | 5.7 | 5.7 | 4.5 |
 
 ## Type
 
 | Role | Font | Size / weight | Notes |
 |---|---|---|---|
-| Brand | Caveat | 27 / 700 | Header only |
+| Brand | Caveat | 26 / 700 | Cover, beside the logo |
+| Screen title | Caveat | 21 / 500 | Right of the cover, says where you are |
+| Tab label | Caveat | 16 / 500 | Under its icon in the bottom bar |
 | Page & section title | Caveat | 28 / 700 | Squiggle underline |
 | Section label (`.label`) | Caveat | 17 / 500 | "Spent", "Budget left" |
 | Status pill, buttons, empty state | Caveat | 16–20 / 700 | No digits ever |
-| Balance | Inter | 42 / 700 | `letter-spacing: -.025em` |
-| Supporting figures | Inter | 20 / 600 | |
-| Row amount | Inter | 16 / 700 | Fixed 104px column |
+| Balance | Inter | 32–42 / 700 | Clamped to the viewport, `letter-spacing: -.025em` |
+| Supporting figures | Inter | 17–20 / 600 | Clamped, so a five-figure sum never widens the card |
+| Row amount | Inter | 16 / 700 | Right-aligned, at least 104px wide |
 | Row title | Inter | 15 / 600 | Truncates with ellipsis |
 | Row subtitle, note, per-day | Inter | 13 / 400 | Carries money, so never handwriting |
 
@@ -79,22 +85,34 @@ as values change. Both families are subsetted and embedded as base64 in
 An 8px grid: `--s1: 4`, `--s2: 8`, `--s3: 12`, `--s4: 16`, `--s5: 24`, `--s6: 32`.
 Page padding is 16px; cards are 16px apart; card padding is 24px top, 16px right
 and bottom, 24px left to clear the margin rule. Minimum touch target is 44px
-(`--tap`) and it is enforced on buttons, inputs, selects, nav tabs and row
-delete targets.
+(`--tap`) and it is enforced on buttons, inputs, selects and row delete targets;
+tabs are 58px so the icon and its label both fit. The page reserves 76px plus
+the safe-area inset at the bottom so the last card clears the fixed bar.
 
 ## Components
 
 - **Cover (`.topbar`)** — deep ink-blue gradient, grain overlay, and a spiral
   strip along the bottom edge drawn as two stacked radial gradients: a dark
   punched hole plus a lit lower lip.
-- **Tab (`.tabs button`)** — Caveat, 44px tall. The active one is a divider
-  pulled out of the pages: paper-coloured, top corners rounded, lifted shadow.
+- **Logo (`.logo`)** — a ruled notebook with three ascending bars and a spiral,
+  drawn once as an SVG mask so it inherits the colour it sits on. The same mark
+  is the app icon (`app/static/icon.svg`) and the launcher icon.
+- **Bottom bar (`.tabs`)** — fixed to the bottom edge, paper-coloured, above the
+  safe-area inset. Each tab is a pen-drawn icon over a Caveat label, 58px tall.
+  The active one takes ink-blue and grows a 3px marker along its top edge.
+- **Ledger strip (`.split`)** — the four supporting figures as a 2×2 block ruled
+  by hairlines, label above value. Cells are `min-width: 0` so a long figure
+  shrinks the type rather than widening the page.
 - **Page (`.card`)** — paper colour with the red margin rule ruled straight into
   the background, a grain layer behind the text, and a strip of washi tape on
   top. Tape angle and colour rotate across three variants by `nth-of-type`.
 - **Row (`.list li`)** — 44px minimum, divided by a ruled line, never a plain
-  border. Title, then subtitle; amount in the fixed column; a 44px delete target
-  drawn as a pen stroke cross.
+  border. A 3px stroke down the left edge colours the row by what it is (income
+  green, transfer pencil, overspend brick), selected with `:has()` from the
+  amount rather than from an extra class. Title, then subtitle; amount in the
+  fixed column; a 44px delete target drawn as a pen stroke cross. A row that
+  cannot be deleted still reserves that column, but only in a list that has
+  delete targets at all, so a list without any keeps its full width.
 - **Amount** — right-aligned, tabular. Income is green with a leading `+`.
   Overspent is brick red and gets a hand-drawn circle around it, drawn as a
   masked SVG overlay so the column stays aligned.

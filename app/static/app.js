@@ -8,6 +8,7 @@ const TOKEN_KEY = "pam.token";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
 const state = { view: "today", kind: "expense", categories: [], accounts: [], lastAccountId: null };
+const VIEW_TITLES = { today: "Today", month: "This month", categories: "Categories", accounts: "Accounts" };
 
 // --- API -----------------------------------------------------------------
 
@@ -113,6 +114,13 @@ function li({ title, sub, amount, over = false, plus = false, muted = false, onD
     del.textContent = "✕";
     del.addEventListener("click", onDelete);
     item.appendChild(del);
+  } else if (amount !== undefined) {
+    // A row that cannot be deleted still holds the column open, so amounts
+    // down the list stay on one right edge.
+    const spacer = document.createElement("span");
+    spacer.className = "icon-gap";
+    spacer.setAttribute("aria-hidden", "true");
+    item.appendChild(spacer);
   }
   return item;
 }
@@ -139,6 +147,7 @@ function logout() {
 
 function showLogin() {
   $("#tabs").hidden = true;
+  $("#screen-title").textContent = "";
   const view = render("tpl-login");
   const form = $("#login-form", view);
 
@@ -206,6 +215,7 @@ async function showView(name) {
   for (const button of document.querySelectorAll("#tabs button")) {
     button.classList.toggle("active", button.dataset.view === name);
   }
+  $("#screen-title").textContent = VIEW_TITLES[name] ?? "";
   const views = { today: showToday, month: showMonth, categories: showCategories, accounts: showAccounts };
   try {
     await views[name]();
@@ -262,7 +272,7 @@ function renderTargets(targets) {
           ? `${money(t.amount)} · reached`
           : t.status === "expired"
             ? `${money(t.amount)} by ${by} · missed by ${money(t.remaining)}`
-            : `${money(t.amount)} by ${by} · ${money(t.remaining)} to go, ${t.days_left} day${t.days_left === 1 ? "" : "s"} left`,
+            : `${money(t.remaining)} to go · ${t.days_left} day${t.days_left === 1 ? "" : "s"} left, by ${by}`,
       bar: Number(t.amount) > 0 ? Math.max(0, (Number(t.current_balance) / Number(t.amount)) * 100) : 0,
       onDelete: () => deleteTarget(t),
     });
@@ -634,8 +644,10 @@ async function saveAccount(event) {
 function renderAccountList() {
   const items = state.accounts.map((a) =>
     li({
-      title: a.subtype ? `${a.name} · ${a.subtype}` : a.name,
-      sub: `${TYPE_LABELS[a.type]} · opening ${money(a.opening_balance)}`,
+      title: a.name,
+      // The bank only earns a mention when it is not already the account's name;
+      // the opening balance lives in the edit form, where it can be changed.
+      sub: a.subtype && a.subtype !== a.name ? `${TYPE_LABELS[a.type]} · ${a.subtype}` : TYPE_LABELS[a.type],
       amount: money(a.balance),
       over: Number(a.balance) < 0,
       onDelete: a.is_default ? undefined : () => deleteAccount(a),

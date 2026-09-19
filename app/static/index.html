@@ -14,16 +14,19 @@
 </head>
 <body>
   <header class="topbar">
+    <span class="logo" aria-hidden="true"></span>
     <span class="brand">PAM</span>
-    <nav id="tabs" class="tabs" hidden>
-      <button data-view="today" class="active">Today</button>
-      <button data-view="month">Month</button>
-      <button data-view="categories">Categories</button>
-      <button data-view="accounts">Accounts</button>
-    </nav>
+    <span id="screen-title" class="screen-title"></span>
   </header>
 
   <main id="view"></main>
+
+  <nav id="tabs" class="tabs" aria-label="Sections" hidden>
+    <button data-view="today" class="active">Today</button>
+    <button data-view="month">Month</button>
+    <button data-view="categories">Categories</button>
+    <button data-view="accounts">Accounts</button>
+  </nav>
   <div id="toast" class="toast" hidden></div>
 
   <template id="tpl-login">
@@ -65,7 +68,7 @@
         </div>
         <div class="row">
           <input id="price" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
-          <select id="category" required></select>
+          <select id="category" class="grow" required></select>
         </div>
         <div class="row">
           <input id="date" type="date" required>
@@ -118,8 +121,8 @@
       <ul id="target-list" class="list"></ul>
       <form id="target-form" class="stack">
         <div class="row">
-          <input id="target-name" placeholder="Target (e.g. Laptop)" required maxlength="50">
-          <input id="target-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Balance to reach" required>
+          <input id="target-name" placeholder="Goal" required maxlength="50">
+          <input id="target-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
         </div>
         <div class="row">
           <input id="target-date" type="date" required>
@@ -168,8 +171,8 @@
           </select>
         </div>
         <div class="row">
-          <input id="acc-subtype" placeholder="Bank (e.g. AIB, Revolut)" maxlength="50">
-          <input id="acc-opening" type="number" inputmode="decimal" step="0.01" placeholder="Opening balance">
+          <input id="acc-subtype" placeholder="Bank (e.g. AIB)" maxlength="50">
+          <input id="acc-opening" type="number" inputmode="decimal" step="0.01" placeholder="Opening €">
         </div>
         <div class="row">
           <button type="submit" class="primary" id="acc-submit">Add account</button>

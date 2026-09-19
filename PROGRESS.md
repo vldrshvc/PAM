@@ -196,3 +196,41 @@ raised, surfacing as a 500. Accounts now carry `is_default`, set at
 registration and backfilled by migration `cdf791184e60` for the oldest account
 of each existing user; the delete guard and the client's protected row read the
 flag. Regression test added.
+
+## Navigation and identity pass (Money Manager layout)
+
+**Why:** the cover had to carry the brand and four section tabs at once, so at
+360px it ran out of room; the app also had no mark of its own. Owner asked for
+the control scheme of Money Manager (Realbyte) — identity on top, navigation at
+the bottom.
+
+Sections moved out of the header into a fixed bottom bar, each tab a pen-drawn
+icon over its label, the open one in ink-blue with a 3px marker on its top edge.
+The cover now holds only the logo, the name, and the title of the screen you are
+on. The logo is a ruled notebook with three ascending bars, drawn once as an SVG
+mask so it takes the colour under it; the same mark is the app and launcher
+icon. The four supporting figures became a ruled 2×2 ledger strip, and each row
+grew a coloured stroke down its left edge keyed off the amount with `:has()`,
+so income, transfers and overspends read at a glance without an extra class.
+
+Fixes that came out of measuring it at 360px: grid items default to
+`min-width: auto`, so a long figure was stretching the card past the viewport
+and dragging the fixed bar with it — cards, card children and ledger cells are
+now `min-width: 0`, and the balance and supporting figures are `clamp()`ed.
+Selects that carried long words (the category list) got 1.45× the width of the
+field beside them. Account rows dropped the opening balance from the subtitle
+(it is in the edit form, where it can be changed) and no longer repeat the bank
+in the title. A row with no delete button reserves that column so amounts stay
+on one right edge — but only in a list that has delete buttons at all, otherwise
+the whole list gave up 44px for nothing.
+
+**Verified at 360px, both themes:** no horizontal overflow (`scrollWidth` 360 =
+`clientWidth`), header and bottom bar both fit without scrolling, smallest
+control 58px, every amount at the same pixel (223) and every bar the same width
+(158), last card clears the bar by 461px. Twelve text styles re-measured against
+their composited backgrounds: all clear WCAG AA (worst 5.56 light, 5.65 dark).
+Full functional walkthrough passes with no console errors; 128 tests green.
+README screenshots re-shot at 360px.
+
+**Known gaps:** no in-app theme toggle. Screenshots are headless renders, not
+photographs of the phone.
