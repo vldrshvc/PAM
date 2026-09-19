@@ -3,16 +3,18 @@ package ie.yarodev.pam.widget
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.security.crypto.MasterKeys
 import ie.yarodev.pam.BuildConfig
 
 /** Token and the last fetched summary, encrypted at rest. */
 class Store(context: Context) {
 
+    // security-crypto 1.0.0 signature: file name, key alias, context, then the
+    // two schemes. The key itself lives in the Android keystore.
     private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
-        context,
         "pam_widget",
-        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+        MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC),
+        context,
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
