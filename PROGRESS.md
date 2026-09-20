@@ -234,3 +234,44 @@ README screenshots re-shot at 360px.
 
 **Known gaps:** no in-app theme toggle. Screenshots are headless renders, not
 photographs of the phone.
+
+## The home screen becomes a history, adding moves behind a "+"
+
+**Why:** the home screen only listed today, so yesterday's purchases were
+unreachable without the Month tab, which shows category totals rather than
+entries. The add forms also took the top third of the screen every time.
+
+`#today-list` is gone; the home screen now renders `#feed`: expenses, incomes
+and transfers over a rolling window, newest first, cut into days. Each day is
+headed by a Caveat date rule carrying that day's spend and, when there is any,
+that day's income. Transfers are listed under the day but never counted into
+its totals, because moving money between your own accounts is neither spending
+nor earning. The window starts at 30 days and "Earlier" widens it by 30 at a
+time; rather than guessing whether anything is back there, the button widens,
+compares the row count, and settles on "Nothing earlier" when nothing changed.
+
+The three add forms moved into a bottom sheet opened by a floating "+".
+It closes on the scrim, the cross, Escape or a successful add, and it locks the
+page behind it. One subtlety worth knowing: `main` is its own stacking context
+(it has to sit above the desk grain), so a `z-index` inside it could never beat
+the navigation — the view itself is raised while the sheet is open.
+
+Two date bugs surfaced while building the day headers. `new Date("2026-09-20T00:00:00")`
+parses as *local* midnight, so calling `.toISOString()` on it in any zone east
+of UTC gives the previous day — "Yesterday" was landing a day early and the
+feed window started a day too soon. Date arithmetic now goes through one
+`isoDate`/`shiftDays` pair, the same offset correction `todayISO` already used.
+
+**Verified at 360px, both themes:** no horizontal overflow, header and bar fit,
+smallest visible control 58px, amounts and bars aligned to the pixel. The sheet
+sits above the navigation, its close target clears the segmented control, and
+the panel ends at the viewport edge. Sixteen text styles measured against their
+composited backgrounds, including the day rule, day total, "Earlier" and the
+"+": all clear WCAG AA (worst 5.56 light, 5.65 dark). A dedicated probe covers
+the sheet round trip (open, add, auto-close, feed grows, body unlocked) and
+"Earlier" running out of history; the full walkthrough passes with no console
+errors; 128 tests green.
+
+**Known gaps:** no in-app theme toggle. The feed has no filter or search yet —
+reaching a specific old purchase means widening the window. Screenshots are
+headless renders, not photographs of the phone.

@@ -21,6 +21,10 @@ single component block, so changing the look means changing values, not markup.
 5. **Identity on top, navigation under the thumb.** The cover carries the logo,
    the name and the current screen; moving between screens happens in a fixed
    bottom bar, where a thumb reaches without crossing the screen.
+6. **The screen is a record, adding is an act.** The home screen shows the
+   history and nothing else; the forms live in a sheet behind a floating "+",
+   so the page you land on answers "what did I spend?" without scrolling past
+   a form to get there.
 
 ## Colour
 
@@ -67,6 +71,8 @@ Checked in the browser against the actual composited background, both themes:
 | Brand | Caveat | 26 / 700 | Cover, beside the logo |
 | Screen title | Caveat | 21 / 500 | Right of the cover, says where you are |
 | Tab label | Caveat | 16 / 500 | Under its icon in the bottom bar |
+| Day rule | Caveat | 20 / 700 | "Today", "Yesterday", then "Sat, 19 Sep" |
+| Day total | Inter | 14 / 600 | Pencil grey; income beside it in green |
 | Page & section title | Caveat | 28 / 700 | Squiggle underline |
 | Section label (`.label`) | Caveat | 17 / 500 | "Spent", "Budget left" |
 | Status pill, buttons, empty state | Caveat | 16–20 / 700 | No digits ever |
@@ -100,6 +106,20 @@ the safe-area inset at the bottom so the last card clears the fixed bar.
 - **Bottom bar (`.tabs`)** — fixed to the bottom edge, paper-coloured, above the
   safe-area inset. Each tab is a pen-drawn icon over a Caveat label, 58px tall.
   The active one takes ink-blue and grows a 3px marker along its top edge.
+- **Day rule (`.list li.day`)** — a date ruled across the feed with that day's
+  spend, and its income beside it when there was any. No left stroke: it is a
+  heading, not an entry. Transfers appear under it but are never counted into
+  it, because moving money is neither spending nor earning.
+- **Add button (`.fab`)** — a 58px disc in the accent, floating clear of the
+  bottom bar, carrying a pen-drawn plus.
+- **Sheet (`.sheet`)** — a page lifted off the pad: scrim, paper panel rounded
+  at the top, a grip and a close target in a 46px strip above the forms. It
+  slides up in 220ms, closes on the scrim, the cross, Escape or a successful
+  add, and locks the page behind it. The view is its own stacking context, so
+  it is raised above the navigation only while the sheet is open.
+- **Earlier (`.more`)** — a dashed rule with a pencil note on it. It reports
+  what widening the window found rather than guessing beforehand, so once there
+  is nothing older it reads "Nothing earlier" and stops.
 - **Ledger strip (`.split`)** — the four supporting figures as a 2×2 block ruled
   by hairlines, label above value. Cells are `min-width: 0` so a long figure
   shrinks the type rather than widening the page.
@@ -125,7 +145,9 @@ the safe-area inset at the bottom so the last card clears the fixed bar.
 
 ## Motion
 
-All under 250ms, and all disabled under `prefers-reduced-motion: reduce`.
+All under 250ms, and all disabled under `prefers-reduced-motion: reduce`. The
+sheet slides up in 220ms on `cubic-bezier(.2, .8, .3, 1)` with its scrim fading
+in over 180ms.
 
 | Where | What |
 |---|---|

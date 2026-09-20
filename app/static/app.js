@@ -6,8 +6,11 @@
 
 const TOKEN_KEY = "pam.token";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+const FEED_WINDOW_DAYS = 30;
 
-const state = { view: "today", kind: "expense", categories: [], accounts: [], lastAccountId: null };
+const state = { view: "today", kind: "expense", categories: [], accounts: [], lastAccountId: null,
+                // How far back the history feed reaches, in days. "Earlier" widens it.
+                feedDays: FEED_WINDOW_DAYS };
 const VIEW_TITLES = { today: "Today", month: "This month", categories: "Categories", accounts: "Accounts" };
 
 // --- API -----------------------------------------------------------------
@@ -50,10 +53,20 @@ function money(value) {
   return `€${value}`;
 }
 
-function todayISO() {
-  // Local date, not UTC: an expense added at 00:30 Dublin time is today's.
-  const d = new Date();
+// Local date, not UTC: an expense added at 00:30 Dublin time is today's, and
+// "yesterday" in the feed must mean the user's yesterday.
+function isoDate(d) {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
+function todayISO() {
+  return isoDate(new Date());
+}
+
+function shiftDays(iso, days) {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return isoDate(d);
 }
 
 function categoryName(id) {
@@ -123,6 +136,43 @@ function li({ title, sub, amount, over = false, plus = false, muted = false, onD
     item.appendChild(spacer);
   }
   return item;
+}
+
+// A date rule across the feed: which day, what it cost, what came in.
+function dayHeader(iso, spent, earned) {
+  const item = document.createElement("li");
+  item.className = "day";
+  const label = document.createElement("span");
+  label.className = "day-name";
+  label.textContent = dayLabel(iso);
+  item.appendChild(label);
+  const sums = document.createElement("span");
+  sums.className = "day-sums";
+  if (earned > 0) {
+    const plus = document.createElement("b");
+    plus.className = "plus";
+    plus.textContent = `+${money(earned.toFixed(2))}`;
+    sums.appendChild(plus);
+  }
+  if (spent > 0 || earned === 0) {
+    const out = document.createElement("b");
+    out.textContent = money(spent.toFixed(2));
+    sums.appendChild(out);
+  }
+  item.appendChild(sums);
+  return item;
+}
+
+function dayLabel(iso) {
+  const today = todayISO();
+  if (iso === today) return "Today";
+  if (iso === shiftDays(today, -1)) return "Yesterday";
+  const d = new Date(`${iso}T00:00:00`);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    weekday: "short", day: "numeric", month: "short",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
 }
 
 function fillList(listEl, items, emptyText) {
@@ -211,6 +261,9 @@ function renderAccountOptions(select, selectedId) {
 // --- views ---------------------------------------------------------------
 
 async function showView(name) {
+  // render() throws the sheet away with the rest of the view; the lock it put
+  // on the body would outlive it.
+  document.body.classList.remove("sheet-open");
   state.view = name;
   for (const button of document.querySelectorAll("#tabs button")) {
     button.classList.toggle("active", button.dataset.view === name);
@@ -253,7 +306,39 @@ async function showToday() {
   }
   setKind(state.kind);
 
-  await Promise.all([refreshSummary(), refreshTodayList()]);
+  $("#load-more", view).addEventListener("click", showEarlier);
+  $("#fab", view).addEventListener("click", openSheet);
+  for (const el of view.querySelectorAll("[data-close]")) el.addEventListener("click", closeSheet);
+
+  const [, count] = await Promise.all([refreshSummary(), refreshFeed()]);
+  state.feedCount = count;
+}
+
+// --- the add sheet -------------------------------------------------------
+
+// Adding is a deliberate act behind the "+", so the screen itself can stay a
+// history. The sheet keeps the forms' state between openings; only the date is
+// reset, because a sheet opened tomorrow should default to tomorrow.
+function openSheet() {
+  const sheet = $("#sheet");
+  if (!sheet) return;
+  for (const id of ["#date", "#income-date", "#transfer-date"]) {
+    const field = $(id);
+    if (field && !field.value) field.value = todayISO();
+  }
+  sheet.hidden = false;
+  document.body.classList.add("sheet-open");
+  const first = $("#sheet form:not([hidden]) input:not([type=hidden])");
+  if (first) first.focus({ preventScroll: true });
+}
+
+function closeSheet() {
+  const sheet = $("#sheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.hidden = true;
+  document.body.classList.remove("sheet-open");
+  const fab = $("#fab");
+  if (fab) fab.focus({ preventScroll: true });
 }
 
 // --- targets -------------------------------------------------------------
@@ -349,8 +434,9 @@ async function addTransfer(event) {
     $("#transfer-date").value = todayISO();
     renderAccountOptions($("#transfer-from"), state.accounts[0]?.id);
     renderAccountOptions($("#transfer-to"), state.accounts[1]?.id ?? state.accounts[0]?.id);
+    closeSheet();
     toast("Moved");
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
   } catch (err) {
     toast(err.message, true);
   }
@@ -360,7 +446,7 @@ async function deleteTransfer(transfer) {
   if (!confirm(`Delete transfer of ${money(transfer.amount)}?`)) return;
   try {
     await api(`/transfers/${transfer.id}`, { method: "DELETE" });
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    await Promise.all([refreshSummary(), refreshFeed()]);
   } catch (err) {
     toast(err.message, true);
   }
@@ -381,8 +467,9 @@ async function addIncome(event) {
     $("#income-form").reset();
     $("#income-date").value = todayISO();
     renderAccountOptions($("#income-account"), state.lastAccountId);
+    closeSheet();
     toast("Income added");
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
   } catch (err) {
     toast(err.message, true);
   }
@@ -392,7 +479,7 @@ async function deleteIncome(income) {
   if (!confirm(`Delete +${money(income.amount)} ${income.description || SOURCE_LABELS[income.source]}?`)) return;
   try {
     await api(`/incomes/${income.id}`, { method: "DELETE" });
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    await Promise.all([refreshSummary(), refreshFeed()]);
   } catch (err) {
     toast(err.message, true);
   }
@@ -436,24 +523,40 @@ async function refreshSummary() {
 
 const SOURCE_LABELS = { work: "Work", friend: "Friend", debt: "Debt", bonus: "Bonus", other: "Other" };
 
-async function refreshTodayList() {
-  const today = todayISO();
+// The main screen is a history: every entry, newest first, cut into days.
+// The window starts at 30 days and "Earlier" widens it, so the first paint
+// stays small on a phone but nothing is out of reach.
+async function refreshFeed() {
+  const to = todayISO();
+  const range = `date_from=${shiftDays(to, -(state.feedDays - 1))}&date_to=${to}`;
   const [expenses, incomes, transfers] = await Promise.all([
-    api(`/expenses?date_from=${today}&date_to=${today}`),
-    api(`/incomes?date_from=${today}&date_to=${today}`),
-    api(`/transfers?date_from=${today}&date_to=${today}`),
+    api(`/expenses?${range}`),
+    api(`/incomes?${range}`),
+    api(`/transfers?${range}`),
   ]);
-  const items = [
-    ...transfers.map((t) =>
+
+  // One bucket per day, each already newest-first inside its own kind.
+  const days = new Map();
+  const bucket = (date) => {
+    if (!days.has(date)) days.set(date, { spent: 0, earned: 0, rows: [] });
+    return days.get(date);
+  };
+  for (const e of expenses) {
+    const day = bucket(e.date);
+    day.spent += Number(e.price);
+    day.rows.push(
       li({
-        title: `${accountName(t.from_account_id)} → ${accountName(t.to_account_id)}`,
-        sub: t.description || "transfer",
-        amount: money(t.amount),
-        muted: true,
-        onDelete: () => deleteTransfer(t),
+        title: e.description || categoryName(e.category_id),
+        sub: [e.description ? categoryName(e.category_id) : "", accountName(e.account_id)].filter(Boolean).join(" · "),
+        amount: money(e.price),
+        onDelete: () => deleteExpense(e),
       })
-    ),
-    ...incomes.map((i) =>
+    );
+  }
+  for (const i of incomes) {
+    const day = bucket(i.date);
+    day.earned += Number(i.amount);
+    day.rows.push(
       li({
         title: i.description || SOURCE_LABELS[i.source],
         sub: [i.description ? SOURCE_LABELS[i.source] : "", accountName(i.account_id)].filter(Boolean).join(" · "),
@@ -461,17 +564,50 @@ async function refreshTodayList() {
         plus: true,
         onDelete: () => deleteIncome(i),
       })
-    ),
-    ...expenses.map((e) =>
+    );
+  }
+  // Transfers move money without spending or earning it, so they are listed
+  // but never counted into a day's totals.
+  for (const t of transfers) {
+    bucket(t.date).rows.push(
       li({
-        title: e.description || categoryName(e.category_id),
-        sub: [e.description ? categoryName(e.category_id) : "", accountName(e.account_id)].filter(Boolean).join(" · "),
-        amount: money(e.price),
-        onDelete: () => deleteExpense(e),
+        title: `${accountName(t.from_account_id)} → ${accountName(t.to_account_id)}`,
+        sub: t.description || "transfer",
+        amount: money(t.amount),
+        muted: true,
+        onDelete: () => deleteTransfer(t),
       })
-    ),
-  ];
-  fillList($("#today-list"), items, "Nothing yet today.");
+    );
+  }
+
+  const items = [];
+  for (const date of [...days.keys()].sort().reverse()) {
+    const day = days.get(date);
+    items.push(dayHeader(date, day.spent, day.earned), ...day.rows);
+  }
+  fillList($("#feed"), items, `Nothing in the last ${state.feedDays} days.`);
+  return expenses.length + incomes.length + transfers.length;
+}
+
+// Widening the window is the only way to learn whether anything is back there,
+// so the button reports what it found instead of guessing beforehand.
+async function showEarlier() {
+  const button = $("#load-more");
+  const before = state.feedCount ?? 0;
+  state.feedDays += FEED_WINDOW_DAYS;
+  button.disabled = true;
+  try {
+    state.feedCount = await refreshFeed();
+    if (state.feedCount === before) {
+      button.textContent = "Nothing earlier";
+    } else {
+      button.disabled = false;
+    }
+  } catch (err) {
+    state.feedDays -= FEED_WINDOW_DAYS;
+    button.disabled = false;
+    toast(err.message, true);
+  }
 }
 
 async function suggest() {
@@ -521,8 +657,9 @@ async function addExpense(event) {
     $("#suggest-note").hidden = true;
     renderCategoryOptions($("#category"));
     renderAccountOptions($("#account"), state.lastAccountId);
+    closeSheet();
     toast("Added");
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
   } catch (err) {
     toast(err.message, true);
   }
@@ -532,7 +669,7 @@ async function deleteExpense(expense) {
   if (!confirm(`Delete ${money(expense.price)} ${expense.description || ""}?`)) return;
   try {
     await api(`/expenses/${expense.id}`, { method: "DELETE" });
-    await Promise.all([refreshSummary(), refreshTodayList()]);
+    await Promise.all([refreshSummary(), refreshFeed()]);
   } catch (err) {
     toast(err.message, true);
   }
@@ -708,6 +845,9 @@ async function deleteCategory(category) {
 // --- boot ----------------------------------------------------------------
 
 document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeSheet();
+});
 
 if (localStorage.getItem(TOKEN_KEY)) {
   showApp().catch(() => showLogin());

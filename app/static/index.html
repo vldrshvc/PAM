@@ -56,64 +56,9 @@
     </section>
 
     <section class="card">
-      <div class="segmented" id="kind">
-        <button type="button" data-kind="expense" class="active">Expense</button>
-        <button type="button" data-kind="income">Income</button>
-        <button type="button" data-kind="transfer">Transfer</button>
-      </div>
-      <form id="add-form" class="stack">
-        <div class="row">
-          <input id="raw-text" placeholder='e.g. "SuperValu 12.40"' autocomplete="off">
-          <button type="button" id="suggest-btn">Suggest</button>
-        </div>
-        <div class="row">
-          <input id="price" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
-          <select id="category" class="grow" required></select>
-        </div>
-        <div class="row">
-          <input id="date" type="date" required>
-          <select id="account" required></select>
-        </div>
-        <input id="description" placeholder="Description (optional)" maxlength="255">
-        <p id="suggest-note" class="note" hidden></p>
-        <button type="submit" class="primary">Add expense</button>
-      </form>
-      <form id="income-form" class="stack" hidden>
-        <div class="row">
-          <input id="income-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
-          <select id="income-source" required>
-            <option value="work">Work</option>
-            <option value="friend">Friend</option>
-            <option value="debt">Debt</option>
-            <option value="bonus">Bonus</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        <div class="row">
-          <input id="income-date" type="date" required>
-          <select id="income-account" required></select>
-        </div>
-        <input id="income-description" placeholder="Description (optional)" maxlength="255">
-        <button type="submit" class="primary">Add income</button>
-      </form>
-      <form id="transfer-form" class="stack" hidden>
-        <div class="row">
-          <select id="transfer-from" required></select>
-          <span class="arrow">→</span>
-          <select id="transfer-to" required></select>
-        </div>
-        <div class="row">
-          <input id="transfer-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
-          <input id="transfer-date" type="date" required>
-        </div>
-        <input id="transfer-description" placeholder="Description (optional)" maxlength="255">
-        <button type="submit" class="primary">Move money</button>
-      </form>
-    </section>
-
-    <section class="card">
-      <h2>Today</h2>
-      <ul id="today-list" class="list"></ul>
+      <h2>History</h2>
+      <ul id="feed" class="list"></ul>
+      <button type="button" id="load-more" class="more">Earlier</button>
     </section>
 
     <section class="card">
@@ -130,6 +75,69 @@
         </div>
       </form>
     </section>
+
+    <button type="button" id="fab" class="fab" aria-label="Add an entry" aria-haspopup="dialog"></button>
+
+    <div id="sheet" class="sheet" hidden>
+      <div class="sheet-scrim" data-close></div>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-label="New entry">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <button type="button" class="sheet-close" data-close aria-label="Close"></button>
+        <div class="segmented" id="kind">
+          <button type="button" data-kind="expense" class="active">Expense</button>
+          <button type="button" data-kind="income">Income</button>
+          <button type="button" data-kind="transfer">Transfer</button>
+        </div>
+        <form id="add-form" class="stack">
+          <div class="row">
+            <input id="raw-text" placeholder='e.g. "SuperValu 12.40"' autocomplete="off">
+            <button type="button" id="suggest-btn">Suggest</button>
+          </div>
+          <div class="row">
+            <input id="price" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+            <select id="category" class="grow" required></select>
+          </div>
+          <div class="row">
+            <input id="date" type="date" required>
+            <select id="account" required></select>
+          </div>
+          <input id="description" placeholder="Description (optional)" maxlength="255">
+          <p id="suggest-note" class="note" hidden></p>
+          <button type="submit" class="primary">Add expense</button>
+        </form>
+        <form id="income-form" class="stack" hidden>
+          <div class="row">
+            <input id="income-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+            <select id="income-source" required>
+              <option value="work">Work</option>
+              <option value="friend">Friend</option>
+              <option value="debt">Debt</option>
+              <option value="bonus">Bonus</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="row">
+            <input id="income-date" type="date" required>
+            <select id="income-account" required></select>
+          </div>
+          <input id="income-description" placeholder="Description (optional)" maxlength="255">
+          <button type="submit" class="primary">Add income</button>
+        </form>
+        <form id="transfer-form" class="stack" hidden>
+          <div class="row">
+            <select id="transfer-from" required></select>
+            <span class="arrow">→</span>
+            <select id="transfer-to" required></select>
+          </div>
+          <div class="row">
+            <input id="transfer-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+            <input id="transfer-date" type="date" required>
+          </div>
+          <input id="transfer-description" placeholder="Description (optional)" maxlength="255">
+          <button type="submit" class="primary">Move money</button>
+        </form>
+      </div>
+    </div>
   </template>
 
   <template id="tpl-month">

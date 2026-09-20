@@ -197,6 +197,8 @@ main {
   /* clear of the fixed navigation */
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
 }
+/* On the screen that has one, the floating "+" needs clearing too. */
+main:has(.fab) { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
 
 .card {
   position: relative; isolation: isolate;
@@ -398,6 +400,7 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 :root {
   --circle-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'><path d='M92 5.5C74 1 40 .5 20 6 4 10.5 1 22 8 29c8 8 38 10 62 8 20-1.6 34-6 36-14 1.6-6.4-6-11-18-13.5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/></svg>");
   --tick-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'><path d='M2 9.2 7 14 18 2' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  --plus-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 4.4c.3 5 .4 10.2.1 15.3M4.3 11.7c5.1-.4 10.3-.3 15.4.2' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/></svg>");
   --cross-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4.5 4.8 15.4 15.3M15.2 4.6 4.7 15.4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/></svg>");
 }
 
@@ -479,3 +482,100 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- the history feed ------------------------------------------ */
+
+/* A date ruled across the page, with what that day cost. */
+.list li.day {
+  gap: var(--s2); align-items: baseline;
+  min-height: 0; padding: var(--s4) 0 var(--s2);
+  border-bottom: 1px solid var(--rule);
+}
+.list li.day::before { content: none; }
+.list li:first-child.day { padding-top: var(--s1); }
+.day-name {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--hand); font-weight: 700; font-size: 20px; line-height: 1.1;
+  color: var(--ink);
+}
+.day-sums { flex: 0 0 auto; display: flex; gap: var(--s3); }
+.day-sums b { font-size: 14px; font-weight: 600; color: var(--pencil); }
+.day-sums b.plus { color: var(--green); }
+
+/* Reaching further back is a deliberate step, so it reads as a pencil note. */
+.more {
+  width: 100%; margin-top: var(--s3);
+  font-size: 17px; color: var(--pencil);
+  background: transparent; border: 0; border-top: 1px dashed var(--field-line);
+  border-radius: 0; box-shadow: none;
+}
+.more:disabled { opacity: 1; color: var(--pencil); font-style: italic; }
+
+/* ---------- the add sheet --------------------------------------------- */
+
+/* Adding lives behind a "+", so the screen itself stays a history. */
+.fab {
+  position: fixed; right: var(--s4); z-index: 5;
+  bottom: calc(58px + var(--s4) + env(safe-area-inset-bottom));
+  width: 58px; height: 58px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: var(--accent-bg); color: var(--accent-fg);
+  box-shadow: 0 3px 10px rgba(20, 30, 45, .3);
+}
+.fab::before {
+  content: ""; display: block; width: 28px; height: 28px; margin: 0 auto;
+  background: currentColor;
+  -webkit-mask: var(--plus-doodle) center / contain no-repeat;
+  mask: var(--plus-doodle) center / contain no-repeat;
+}
+.fab:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(20, 30, 45, .3); }
+
+/* The view is its own stacking context (it sits above the desk grain), so the
+   sheet inside it cannot reach over the navigation until the view itself does. */
+body.sheet-open { overflow: hidden; }
+body.sheet-open main { z-index: 6; }
+
+.sheet { position: fixed; inset: 0; z-index: 6; }
+.sheet-scrim {
+  position: absolute; inset: 0;
+  background: rgba(30, 24, 16, .42);
+  animation: fade-in .18s ease-out both;
+}
+/* The page lifted off the pad: paper, rounded at the top, scrolls on its own. */
+.sheet-panel {
+  position: absolute; left: 0; right: 0; bottom: 0; isolation: isolate;
+  max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  /* A 46px strip at the top belongs to the grip and the close target. */
+  padding: 46px var(--s4) var(--s5);
+  padding-bottom: calc(var(--s5) + env(safe-area-inset-bottom));
+  background-color: var(--page);
+  border-top: 1px solid var(--page-edge);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -6px 24px rgba(20, 30, 45, .28);
+  animation: sheet-up .22s cubic-bezier(.2, .8, .3, 1) both;
+}
+/* Grain belongs behind the text at its own opacity, never painted onto the
+   paper colour, or the whole sheet turns grey. */
+.sheet-panel::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+  background-image: var(--grain); opacity: var(--grain-opacity);
+}
+.sheet-grip {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  width: 44px; height: 4px;
+  border-radius: 2px; background: var(--field-line); opacity: .7;
+}
+.sheet-close {
+  position: absolute; top: 0; right: var(--s1);
+  width: var(--tap); height: var(--tap); padding: 0;
+  border: 0; background: transparent; box-shadow: none; font-size: 0;
+}
+.sheet-close::before {
+  content: ""; display: block; width: 18px; height: 18px; margin: 0 auto;
+  background: var(--pencil);
+  -webkit-mask: var(--cross-doodle) center / contain no-repeat;
+  mask: var(--cross-doodle) center / contain no-repeat;
+}
+
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

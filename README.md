@@ -2,14 +2,17 @@
 
 Self-hosted expense tracker with an API-first backend, LLM-based expense categorization, and a daily summary endpoint built as a frozen contract for an Android home-screen widget.
 
-Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move money between your accounts, set a monthly limit per category, set a balance target for a date and see how much per day it takes. The daily summary tells you your balance per account, what you spent and earned today, what's left this month, and where each target stands.
+The home screen is the history: every expense, income and transfer, newest
+first, grouped by day with what that day cost and brought in; adding is behind
+the floating "+". Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move money between your accounts, set a monthly limit per category, set a balance target for a date and see how much per day it takes. The daily summary tells you your balance per account, what you spent and earned today, what's left this month, and where each target stands.
 
 **Live:** https://pam-u8qh.onrender.com/app/ (mobile web app) and https://pam-u8qh.onrender.com/docs (API). Free tier: the first request after 15 idle minutes takes about a minute to wake.
 
 <p>
-  <img src="docs/app-today.png" width="220" alt="Today: balance, quick add with suggested category, today's entries, targets">
-  <img src="docs/app-month.png" width="220" alt="Month: spend against each category limit, overspend circled">
-  <img src="docs/app-today-dark.png" width="220" alt="The same screen in dark mode">
+  <img src="docs/app-today.png" width="200" alt="Home: balance, then every entry newest-first, cut into days with each day's totals">
+  <img src="docs/app-add.png" width="200" alt="The add sheet: expense, income or transfer, opened from the floating plus">
+  <img src="docs/app-month.png" width="200" alt="Month: spend against each category limit, overspend circled">
+  <img src="docs/app-today-dark.png" width="200" alt="The home screen in dark mode">
 </p>
 
 Styled as a paper notebook, light and dark. The rules behind it are in
@@ -26,7 +29,7 @@ Styled as a paper notebook, light and dark. The rules behind it are in
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
 | Design | Hand-rolled CSS, subsetted embedded fonts | Notebook skin, light and dark, WCAG AA verified in-browser |
-| Tests | pytest, 127 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 128 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -81,7 +84,7 @@ curl -H "$AUTH" "localhost:8000/summary/daily?tz=Europe/Dublin"
 
 ## Mobile app
 
-`/app/` is a single-page client in `app/static/`: log in, type "SuperValu 12.40", tap Suggest, confirm the category, add. Switch to Income to record money in, or Transfer to move money between accounts. Balance and today's totals on top with a chip per account, today's list with delete, the month's spend and earnings against limits, category management, an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts, and targets on the Today tab: a balance to reach by a date, with the amount still needed per day recomputed from your live balance. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
+`/app/` is a single-page client in `app/static/`: log in, tap the floating "+", type "SuperValu 12.40", tap Suggest, confirm the category, add. The same sheet switches to Income to record money in, or Transfer to move money between accounts. Under the balance and today's totals the home screen is a history: every entry newest-first, cut into days, each day headed by what it cost and what came in, with "Earlier" to reach further back thirty days at a time. Then the month's spend and earnings against limits, category management, an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts, and targets on the home tab: a balance to reach by a date, with the amount still needed per day recomputed from your live balance. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
 
 Install on Android: open the URL in Chrome → menu → **Add to Home screen**. The manifest sets `display: standalone`, so it opens full-screen without browser chrome.
 
@@ -222,7 +225,7 @@ alembic upgrade head
 pytest
 ```
 
-127 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+128 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
 
 ## Configuration
 
