@@ -366,3 +366,52 @@ revalidated, the links carrying the real hash of each file, a hashed URL being
 immutable, an unhashed or stale one falling back to `no-cache`, and an
 unchanged shell answering 304. Measured over HTTP as well. Walkthrough and both
 probes clean, 133 tests green.
+
+## Receipt scanner
+
+Photograph a receipt and the expense form fills itself in. `POST /receipts/scan`
+takes a multipart image, hands it to a vision model inline as a `data:` URL,
+and returns `{total, merchant, date, category, fell_back}`. It creates nothing:
+the user confirms the suggestion and adds it like any other expense.
+
+**The photo is never stored.** It is read into memory for the length of the
+call and dropped — not to disk, not to the database — and because it is sent
+inline rather than uploaded, there is nothing left at the provider to delete
+either. The client shrinks it first, to 1600px on the long edge and JPEG 0.82:
+a 2400×3200 camera photo left the phone as about 25 KB in the probe. The API
+still bounds what one request may cost (`RECEIPT_MAX_BYTES`, 4 MB, 413 over it)
+and refuses anything that is not JPEG, PNG or WebP with a 415 before a token is
+spent.
+
+**What is trusted and what is checked.** The total is the one number taken from
+the model, because reading it off the paper is the whole point — but it is
+validated as money: a positive decimal, quantized to two places, or the scan is
+refused with a 422 ("Could not read a total on this receipt") rather than
+guessed at. The date must parse as ISO and must not be more than a day in the
+future, otherwise it is dropped and the client falls back to today. The
+merchant is whitespace-collapsed and capped at 120 characters. The category
+must match one of the user's own exactly, same rule as the text categorizer: a
+near miss is a miss and falls back to `uncategorized` with `fell_back: true`.
+The model is asked for bare JSON and its answer is accepted wrapped in a code
+fence too, because that is the one deviation every provider makes.
+
+Vision gets its own model name and timeout in config (`LLM_VISION_MODEL`,
+`LLM_VISION_TIMEOUT_SECONDS`, 45s) so the provider stays a configuration
+choice and a slow picture does not force the text categorizer to wait as long.
+
+**Verified:** 36 tests — the endpoint (a good scan, nothing written, an
+invented category falling back, another user's categories never offered, an
+unreadable total, a non-JSON answer, a wrong media type, an oversized photo, an
+empty photo, a provider failure, and no token) plus the parsers (totals as
+string/float/comma/currency-prefixed, rejects for null/blank/zero/negative/bool,
+fenced JSON, non-object answers, dates kept/future-dropped/unparseable, merchant
+tidying, exact category matching). `design/scanprobe.mjs` drives it in a real
+browser: it draws a 2400×3200 receipt on a canvas, hands it to the file input
+the way a camera would, and checks the form comes back filled
+(12.40 / Groceries / SuperValu Rathmines / 2026-09-18) and that confirming it
+adds a normal expense. 169 tests green, thirty-four contrast measurements pass,
+the walkthrough and both race probes are clean.
+
+**Known gaps:** no line-item breakdown, only the total — splitting one receipt
+across categories is a bigger feature and was not asked for. Nothing detects
+that the same receipt was scanned twice.

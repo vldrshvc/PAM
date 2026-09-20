@@ -4,13 +4,13 @@ Self-hosted expense tracker with an API-first backend, LLM-based expense categor
 
 The home screen is the history: every expense, income and transfer, newest
 first, grouped by day with what that day cost and brought in; adding is behind
-the floating "+". Type "SuperValu €12.40", get back `Groceries` and `12.40`. Record income, move money between your accounts, set a monthly limit per category, set a balance target for a date and see how much per day it takes. The daily summary tells you your balance per account, what you spent and earned today, what's left this month, and where each target stands.
+the floating "+". Type "SuperValu €12.40", get back `Groceries` and `12.40` — or photograph the receipt and get the total, the shop, the date and a category back. Record income, move money between your accounts, set a monthly limit per category, set a balance target for a date and see how much per day it takes. The daily summary tells you your balance per account, what you spent and earned today, what's left this month, and where each target stands.
 
 **Live:** https://pam-u8qh.onrender.com/app/ (mobile web app) and https://pam-u8qh.onrender.com/docs (API). Free tier: the first request after 15 idle minutes takes about a minute to wake.
 
 <p>
   <img src="docs/app-today.png" width="200" alt="Home: balance, then every entry newest-first, cut into days with each day's totals">
-  <img src="docs/app-add.png" width="200" alt="The add sheet: expense, income or transfer, opened from the floating plus">
+  <img src="docs/app-scan.png" width="200" alt="The add sheet after scanning a receipt: total, shop, date and category filled in">
   <img src="docs/app-month.png" width="200" alt="Month: spend against each category limit, overspend circled">
   <img src="docs/app-today-dark.png" width="200" alt="The home screen in dark mode">
 </p>
@@ -29,7 +29,7 @@ Styled as a paper notebook, light and dark. The rules behind it are in
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
 | Design | Hand-rolled CSS, subsetted embedded fonts | Notebook skin, light and dark, WCAG AA verified in-browser |
-| Tests | pytest, 133 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 169 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -84,7 +84,7 @@ curl -H "$AUTH" "localhost:8000/summary/daily?tz=Europe/Dublin"
 
 ## Mobile app
 
-`/app/` is a single-page client in `app/static/`: log in, tap the floating "+", type "SuperValu 12.40", tap Suggest, confirm the category, add. The same sheet switches to Income to record money in, or Transfer to move money between accounts. Under the balance and today's totals the home screen is a history: every entry newest-first, cut into days, each day headed by what it cost and what came in, with "Earlier" to reach further back thirty days at a time. The Month tab carries everything that answers "am I on course": spend and earnings against each category limit, and under them the targets — a balance to reach by a date, with the amount still needed per day recomputed from your live balance. Then category management and an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
+`/app/` is a single-page client in `app/static/`: log in, tap the floating "+", type "SuperValu 12.40", tap Suggest, confirm the category, add. Or tap "Scan a receipt", point the camera at the paper, and the total, the shop, the date and the category come back filled in for you to confirm. The same sheet switches to Income to record money in, or Transfer to move money between accounts. Under the balance and today's totals the home screen is a history: every entry newest-first, cut into days, each day headed by what it cost and what came in, with "Earlier" to reach further back thirty days at a time. The Month tab carries everything that answers "am I on course": spend and earnings against each category limit, and under them the targets — a balance to reach by a date, with the amount still needed per day recomputed from your live balance. Then category management and an Accounts tab (debit card, cash, other; bank name; opening balance) so the numbers match your real accounts. It stores the JWT in `localStorage` and sends the device timezone with every summary call.
 
 Install on Android: open the URL in Chrome → menu → **Add to Home screen**. The manifest sets `display: standalone`, so it opens full-screen without browser chrome.
 
@@ -124,6 +124,7 @@ All routes except `/health`, `/register` and `/token` require `Authorization: Be
 | GET | `/summary/daily?tz=` | Widget contract, see below |
 | GET | `/summary/monthly?month=YYYY-MM&tz=` | Spend vs limit for every category |
 | POST | `/categorize` | Free text in, `{category, amount, fell_back}` out; never writes |
+| POST | `/receipts/scan?tz=` | A receipt photo in, `{total, merchant, date, category, fell_back}` out; never writes, never stores the photo |
 
 Money is always a JSON string with two decimals (`"12.40"`), backed by `NUMERIC(10,2)` and Python `Decimal`. Floats never touch a price.
 
@@ -138,8 +139,8 @@ app/
 ├── schemas.py         Request/response bodies, including the frozen summary shapes
 ├── security.py        argon2 hashing, JWT encode/decode, get_current_user dependency
 ├── llm.py             One chat call against an OpenAI-compatible endpoint; SDK errors → LLMUnavailableError
-├── routers/           HTTP only: auth, account, accounts, expenses, incomes, transfers, targets, categories, summary, categorize
-├── services/          budget, target and categorization maths (pure, no I/O); ledger (per-account and total balance queries)
+├── routers/           HTTP only: auth, account, accounts, expenses, incomes, transfers, targets, categories, summary, categorize, receipts
+├── services/          budget, target, categorization and receipt-parsing logic (pure, no I/O); ledger (per-account and total balance queries)
 └── static/            Mobile web client (index.html, app.js, styles.css, manifest.json)
 migrations/            Alembic revisions; env.py points at SQLModel.metadata so autogenerate diffs the models
 tests/                 pytest; conftest creates <db>_test, truncates per test, fakes the LLM
@@ -157,6 +158,7 @@ A request goes router → service → session. Routers own status codes and auth
 - **Per-user isolation returns 404, not 403.** Another user's expense or category reads as "not found", so the API doesn't confirm that other people's data exists.
 - **Schema changes are migrations, applied on startup.** The lifespan runs `alembic upgrade head`, so a deploy that adds a column just works against a database that already has data. The first revision is a no-op on databases that predate migrations, and a test asserts that autogenerate against the migrated schema produces an empty diff, so models and migrations can't drift.
 - **Registration is one transaction.** The user row is flushed, their default categories (including the protected `uncategorized`) and their `General` account are inserted, then a single commit. No user can exist without a fallback category or a default account.
+- **A receipt photo is read and dropped.** `POST /receipts/scan` holds the image in memory for the length of the call, sends it inline as a `data:` URL and returns a suggestion; nothing is written to disk or to the database, and there is no upload at the provider to delete afterwards. The client downscales to 1600px and JPEG before uploading — a 2400×3200 camera photo leaves the phone as about 25 KB. The total is the one number taken from the model, because reading it off the paper is the point, and it is still validated as a positive two-place decimal or the scan is refused with a 422. The category must match one of the user's own exactly, same as the text categorizer.
 - **The shell is never cached, everything it names is cached forever.** Static files answered with only an `ETag` let a browser apply heuristic freshness: with no `Cache-Control` it may reuse a copy for roughly a tenth of the file's age *without asking the server*, so a deploy stays invisible for days — and an installed PWA is served by the same browser cache, which outlives uninstalling the app. So `index.html` and `manifest.json` go out `no-cache` (an unchanged one answers 304), and their links carry the content hash of the file they point at, which earns that file `max-age=31536000, immutable`. A deploy changes the hash, the URL, and therefore the cache entry. `app/webclient.py`.
 - **Targets are recomputed on every read, never stored.** A target stores only the goal, the dates and the balance when it was set. `required_per_day` is what's still missing divided by the days left (today included), rounded *up* to the cent so following it never undershoots. Earn more today and tomorrow's figure drops; earn less and it rises. The pace check compares your balance to the straight line from the starting balance to the goal, and the projection extends your average daily change so far.
 - **Transfers are neither income nor expense.** They change two account balances and never the total, so spending totals stay honest when you move cash between your own cards. Deleting an account folds its opening balance and history into `General`, so a delete never changes your total either.
@@ -226,7 +228,7 @@ alembic upgrade head
 pytest
 ```
 
-133 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+169 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
 
 ## Configuration
 

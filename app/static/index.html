@@ -77,6 +77,8 @@
           <button type="button" data-kind="transfer">Transfer</button>
         </div>
         <form id="add-form" class="stack">
+          <button type="button" id="scan-btn" class="scan">Scan a receipt</button>
+          <input id="receipt" type="file" accept="image/*" capture="environment" hidden>
           <div class="row">
             <input id="raw-text" placeholder='e.g. "SuperValu 12.40"' autocomplete="off">
             <button type="button" id="suggest-btn">Suggest</button>

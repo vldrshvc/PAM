@@ -400,6 +400,7 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 :root {
   --circle-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40' preserveAspectRatio='none'><path d='M92 5.5C74 1 40 .5 20 6 4 10.5 1 22 8 29c8 8 38 10 62 8 20-1.6 34-6 36-14 1.6-6.4-6-11-18-13.5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/></svg>");
   --tick-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 16'><path d='M2 9.2 7 14 18 2' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  --camera-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M3.2 8.6h3.4l1.6-2.4h7.6l1.6 2.4h3.4v10.2H3.2z'/><circle cx='12' cy='13.4' r='3.4'/></svg>");
   --plus-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 4.4c.3 5 .4 10.2.1 15.3M4.3 11.7c5.1-.4 10.3-.3 15.4.2' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round'/></svg>");
   --cross-doodle: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4.5 4.8 15.4 15.3M15.2 4.6 4.7 15.4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/></svg>");
 }
@@ -511,6 +512,21 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
   border-radius: 0; box-shadow: none;
 }
 .more:disabled { opacity: 1; color: var(--pencil); font-style: italic; }
+
+/* A slot for a photograph, tucked into the page like a taped-in receipt. */
+.scan {
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  width: 100%;
+  font-size: 19px; color: var(--ink-blue);
+  background: transparent;
+  border: 1.5px dashed var(--ink-blue-soft); box-shadow: none;
+}
+.scan::before {
+  content: ""; width: 22px; height: 22px; background: currentColor;
+  -webkit-mask: var(--camera-doodle) center / contain no-repeat;
+  mask: var(--camera-doodle) center / contain no-repeat;
+}
+.scan:disabled { color: var(--pencil); border-color: var(--field-line); opacity: 1; }
 
 /* ---------- the add sheet --------------------------------------------- */
 

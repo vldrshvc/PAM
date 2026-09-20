@@ -114,6 +114,9 @@ the safe-area inset at the bottom so the last card clears the fixed bar.
   it, because moving money is neither spending nor earning.
 - **Add button (`.fab`)** — a 58px disc in the accent, floating clear of the
   bottom bar, carrying a pen-drawn plus.
+- **Scan slot (`.scan`)** — a dashed full-width frame with a pen-drawn camera,
+  sitting at the top of the expense form: a place to tuck a photograph in,
+  rather than a button competing with "Add expense".
 - **Sheet (`.sheet`)** — a page lifted off the pad: scrim, paper panel rounded
   at the top, a grip and a close target in a 46px strip above the forms. It
   slides up in 220ms, closes on the scrim, the cross, Escape or a successful

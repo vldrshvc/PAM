@@ -1,10 +1,11 @@
 """Thin wrapper around an OpenAI-compatible chat endpoint.
 
-One method, one job: send a system + user prompt, return the text. Every
-provider quirk and SDK exception stays in here so the rest of the app only
-ever sees LLMUnavailableError or a string.
+Two methods, one job each: send a prompt (optionally with a picture) and
+return the text. Every provider quirk and SDK exception stays in here so the
+rest of the app only ever sees LLMUnavailableError or a string.
 """
 
+import base64
 import logging
 import time
 
@@ -32,6 +33,28 @@ class LLMClient:
         self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=1)
 
     def complete(self, system: str, user: str, max_tokens: int = 30) -> str:
+        return self._chat(system, user, max_tokens=max_tokens)
+
+    def read_image(
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 200
+    ) -> str:
+        """Same call with a picture attached, inline as a data URL.
+
+        Inline rather than uploaded: the photo is a receipt the user does not
+        want kept, and a data URL leaves nothing behind at the provider to
+        delete afterwards.
+        """
+        data_url = f"data:{media_type};base64,{base64.b64encode(image).decode()}"
+        return self._chat(
+            system,
+            [
+                {"type": "text", "text": user},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+            max_tokens=max_tokens,
+        )
+
+    def _chat(self, system: str, user: object, max_tokens: int) -> str:
         started = time.monotonic()
         try:
             response = self._client.chat.completions.create(
@@ -73,4 +96,16 @@ def get_llm_client() -> LLMClient:
         base_url=settings.llm_base_url,
         model=settings.llm_model,
         timeout=settings.llm_timeout_seconds,
+    )
+
+
+def get_vision_client() -> LLMClient:
+    """The same wrapper pointed at a model that accepts images."""
+    if not settings.llm_api_key:
+        raise LLMNotConfiguredError("LLM_API_KEY is not set")
+    return LLMClient(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        model=settings.llm_vision_model,
+        timeout=settings.llm_vision_timeout_seconds,
     )

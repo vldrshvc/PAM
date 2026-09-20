@@ -15,12 +15,16 @@ const VIEW_TITLES = { today: "Today", month: "This month", categories: "Categori
 
 // --- API -----------------------------------------------------------------
 
-async function api(path, { method = "GET", body, form } = {}) {
+async function api(path, { method = "GET", body, form, upload } = {}) {
   const headers = {};
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
   let payload;
-  if (form) {
+  if (upload) {
+    // No Content-Type: the browser has to set it itself to carry the
+    // multipart boundary.
+    payload = upload;
+  } else if (form) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
     payload = new URLSearchParams(form);
   } else if (body !== undefined) {
@@ -296,6 +300,8 @@ async function showToday() {
     }
   });
   $("#add-form", view).addEventListener("submit", addExpense);
+  $("#scan-btn", view).addEventListener("click", () => $("#receipt").click());
+  $("#receipt", view).addEventListener("change", scanReceipt);
 
   $("#income-date", view).value = todayISO();
   $("#income-form", view).addEventListener("submit", addIncome);
@@ -663,6 +669,65 @@ async function suggest() {
     if (live(button)) {
       button.disabled = false;
       button.textContent = "Suggest";
+    }
+  }
+}
+
+// A phone camera hands over 4000 pixels and several megabytes; a receipt only
+// has to stay legible, and the provider is paid by the pixel. So the photo is
+// shrunk here, before it ever leaves the device.
+const RECEIPT_MAX_EDGE = 1600;
+const RECEIPT_QUALITY = 0.82;
+
+async function shrink(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, RECEIPT_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Could not read that photo"))), "image/jpeg", RECEIPT_QUALITY)
+  );
+}
+
+async function scanReceipt(event) {
+  const file = event.target.files[0];
+  // Let the same photo be picked twice in a row.
+  event.target.value = "";
+  if (!file) return;
+  const note = $("#suggest-note");
+  const button = $("#scan-btn");
+  button.disabled = true;
+  button.textContent = "Reading…";
+  note.textContent = "Reading the receipt, this takes a few seconds.";
+  note.classList.remove("warn");
+  note.hidden = false;
+  try {
+    const photo = await shrink(file);
+    const upload = new FormData();
+    upload.append("photo", photo, "receipt.jpg");
+    const result = await api(`/receipts/scan?tz=${encodeURIComponent(TZ)}`, { method: "POST", upload });
+    if (!live(note)) return;
+    $("#price").value = result.total;
+    renderCategoryOptions($("#category"), result.category.id);
+    if (result.merchant) $("#description").value = result.merchant;
+    if (result.date) $("#date").value = result.date;
+    note.textContent = result.fell_back
+      ? `Read ${money(result.total)}${result.merchant ? ` at ${result.merchant}` : ""}. Pick a category yourself.`
+      : `Read ${money(result.total)}${result.merchant ? ` at ${result.merchant}` : ""} · ${result.category.name}`;
+    note.classList.toggle("warn", result.fell_back);
+  } catch (err) {
+    if (live(note)) {
+      note.textContent = `${err.message}. Type it in yourself.`;
+      note.classList.add("warn");
+    }
+    toast(err.message, true);
+  } finally {
+    if (live(button)) {
+      button.disabled = false;
+      button.textContent = "Scan a receipt";
     }
   }
 }

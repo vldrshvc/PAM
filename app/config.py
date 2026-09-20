@@ -43,5 +43,15 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-3.5-flash"
     llm_timeout_seconds: float = 25.0
 
+    # Reading a receipt photo. Must be a model that accepts images; the
+    # default is the same one, which does. Vision calls carry a picture and
+    # think for longer, so they get their own, laxer timeout.
+    llm_vision_model: str = "gemini-3.5-flash"
+    llm_vision_timeout_seconds: float = 45.0
+    # The photo is never stored; this only bounds what one request may cost
+    # in memory and in provider tokens. The client downscales before sending,
+    # so a normal receipt arrives well under this.
+    receipt_max_bytes: int = 4_000_000
+
 
 settings = Settings()

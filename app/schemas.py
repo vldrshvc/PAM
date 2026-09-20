@@ -264,6 +264,20 @@ class CategorizeResponse(SQLModel):
     fell_back: bool
 
 
+class ReceiptScanResponse(SQLModel):
+    """A suggestion to put in the add form. Nothing is stored until the user
+    confirms it, and the photo itself is never stored at all."""
+
+    total: Decimal
+    merchant: str | None
+    # The date printed on the receipt, if it was legible; the client falls
+    # back to today.
+    date: dt.date | None
+    category: CategoryRead
+    # True when the model's category did not match one of the user's own.
+    fell_back: bool
+
+
 # --- Summaries (public client contract, see README) ---------------------------
 
 

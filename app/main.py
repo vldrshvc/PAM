@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 
 from app.database import run_migrations, wait_for_db
 from app.webclient import WebClient
-from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, summary, targets, transfers, wellknown
+from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, receipts, summary, targets, transfers, wellknown
 
 
 # Uvicorn configures only its own loggers; give the app's loggers a
@@ -42,6 +42,7 @@ app.include_router(targets.router)
 app.include_router(categories.router)
 app.include_router(summary.router)
 app.include_router(categorize.router)
+app.include_router(receipts.router)
 
 # The mobile web client. Plain static files; every action it takes is one
 # of the API calls above, so it needs no server-side code of its own. It is

@@ -22,6 +22,7 @@ from app.database import get_session
 from app.llm import LLMUnavailableError
 from app.main import app
 from app.routers.categorize import llm_dependency
+from app.routers.receipts import vision_dependency
 
 
 def _test_database_url() -> str:
@@ -118,6 +119,7 @@ class FakeLLM:
         self.answer = "uncategorized"
         self.error: Exception | None = None
         self.calls: list[tuple[str, str]] = []
+        self.images: list[tuple[bytes, str]] = []
 
     def complete(self, system: str, user: str, max_tokens: int = 30) -> str:
         self.calls.append((system, user))
@@ -125,11 +127,24 @@ class FakeLLM:
             raise self.error
         return self.answer
 
+    def read_image(
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 200
+    ) -> str:
+        self.images.append((image, media_type))
+        return self.complete(system, user, max_tokens)
+
 
 @pytest.fixture
 def fake_llm(client: TestClient) -> FakeLLM:
     fake = FakeLLM()
     app.dependency_overrides[llm_dependency] = lambda: fake
+    return fake
+
+
+@pytest.fixture
+def fake_vision(client: TestClient) -> FakeLLM:
+    fake = FakeLLM()
+    app.dependency_overrides[vision_dependency] = lambda: fake
     return fake
 
 
