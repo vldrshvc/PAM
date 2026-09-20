@@ -293,3 +293,40 @@ home screen has no target form at all, adds income on the home tab, and comes
 back to Month to see the per-day figure drop from €34.37 to €17.70 with the
 status chip reading "On track". Amounts stay aligned, the smallest control is
 44px, all thirty-two contrast measurements pass, 128 tests green.
+
+## Fix — an abandoned request must not become an error toast
+
+**Reported:** "часто снизу пишет ошибку Cannot set properties of null (setting
+value)", plus the bottom bar sliding out of reach on the phone.
+
+The view is replaced whole on every tab switch, so any element looked up before
+an `await` can be detached by the time the response lands. Writing to a
+detached node throws, the throw is caught by the handler, and the handler
+toasts it — so a perfectly successful action ended in a red error. The slow
+free-tier suggestion made this frequent: ask for a category, get bored, switch
+tab, get an error for a request that worked.
+
+Fixed with one `live(el)` helper (`el.isConnected ? el : null`) and a guard at
+every write that happens after an `await`: `suggest()` now returns early when
+its form is gone, the four add handlers reset the form only if it is still
+there, and "Earlier" only touches its button if it is still on screen. The
+request itself is never abandoned — the expense still lands, the feed and the
+summary still refresh when you come back.
+
+`design/raceprobe.mjs` holds each request open, switches tab while it is in
+flight and asserts no error is ever shown. Against the old code it reports
+exactly the reported message for the suggestion, the expense and "Earlier",
+plus `Cannot read properties of null (reading 'reset')` for the target; against
+the fixed code all four are silent and the work still lands.
+
+The bottom bar itself is `position: fixed` and measured stuck at every scroll
+position, so the reported scrolling is the Android keyboard: by default it
+shrinks only the visual viewport, leaving a fixed bottom bar below the fold.
+The viewport meta now carries `interactive-widget=resizes-content`, which
+shrinks the layout viewport instead, and the sheet is capped in `dvh` rather
+than `vh` so its submit button stays reachable with the keyboard up. The toast
+also moved above the bar instead of being drawn across it.
+
+**Verified:** four-case race probe silent, nav fixed at scroll 0 / 900 / bottom,
+toast clears the bar by 7px, walkthrough clean, thirty-two contrast
+measurements pass, 128 tests green.

@@ -466,7 +466,8 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 /* ---------- toast ----------------------------------------------------- */
 
 .toast {
-  position: fixed; left: 50%; bottom: var(--s5); transform: translateX(-50%);
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(58px + var(--s4) + env(safe-area-inset-bottom));
   z-index: 10; max-width: calc(100vw - var(--s6));
   padding: 9px 18px; border-radius: 6px;
   background: var(--ink); color: var(--page);
@@ -544,7 +545,7 @@ body.sheet-open main { z-index: 6; }
 /* The page lifted off the pad: paper, rounded at the top, scrolls on its own. */
 .sheet-panel {
   position: absolute; left: 0; right: 0; bottom: 0; isolation: isolate;
-  max-height: 88vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  max-height: 88vh; max-height: 88dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
   /* A 46px strip at the top belongs to the grip and the close target. */
   padding: 46px var(--s4) var(--s5);
   padding-bottom: calc(var(--s5) + env(safe-area-inset-bottom));

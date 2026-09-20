@@ -49,6 +49,12 @@ function describeError(data) {
 
 const $ = (selector, root = document) => root.querySelector(selector);
 
+// A tab switch replaces the whole view, so anything looked up before an await
+// can be detached by the time the response lands. Writing to a detached node
+// throws, and the throw reaches the user as an error toast, so every write
+// that happens after an await goes through this.
+const live = (el) => (el && el.isConnected ? el : null);
+
 function money(value) {
   return `€${value}`;
 }
@@ -395,8 +401,11 @@ async function addTarget(event) {
   };
   try {
     await api(`/targets?tz=${encodeURIComponent(TZ)}`, { method: "POST", body });
-    $("#target-form").reset();
-    $("#target-date").value = todayISO();
+    const form = live($("#target-form"));
+    if (form) {
+      form.reset();
+      $("#target-date").value = todayISO();
+    }
     toast("Target set");
     await refreshTargets();
   } catch (err) {
@@ -435,10 +444,13 @@ async function addTransfer(event) {
   };
   try {
     await api("/transfers", { method: "POST", body });
-    $("#transfer-form").reset();
-    $("#transfer-date").value = todayISO();
-    renderAccountOptions($("#transfer-from"), state.accounts[0]?.id);
-    renderAccountOptions($("#transfer-to"), state.accounts[1]?.id ?? state.accounts[0]?.id);
+    const form = live($("#transfer-form"));
+    if (form) {
+      form.reset();
+      $("#transfer-date").value = todayISO();
+      renderAccountOptions($("#transfer-from"), state.accounts[0]?.id);
+      renderAccountOptions($("#transfer-to"), state.accounts[1]?.id ?? state.accounts[0]?.id);
+    }
     closeSheet();
     toast("Moved");
     state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
@@ -469,9 +481,12 @@ async function addIncome(event) {
   try {
     await api("/incomes", { method: "POST", body });
     state.lastAccountId = body.account_id;
-    $("#income-form").reset();
-    $("#income-date").value = todayISO();
-    renderAccountOptions($("#income-account"), state.lastAccountId);
+    const form = live($("#income-form"));
+    if (form) {
+      form.reset();
+      $("#income-date").value = todayISO();
+      renderAccountOptions($("#income-account"), state.lastAccountId);
+    }
     closeSheet();
     toast("Income added");
     state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
@@ -602,6 +617,7 @@ async function showEarlier() {
   button.disabled = true;
   try {
     state.feedCount = await refreshFeed();
+    if (!live(button)) return;
     if (state.feedCount === before) {
       button.textContent = "Nothing earlier";
     } else {
@@ -609,7 +625,7 @@ async function showEarlier() {
     }
   } catch (err) {
     state.feedDays -= FEED_WINDOW_DAYS;
-    button.disabled = false;
+    if (live(button)) button.disabled = false;
     toast(err.message, true);
   }
 }
@@ -626,6 +642,9 @@ async function suggest() {
   note.hidden = false;
   try {
     const result = await api("/categorize", { method: "POST", body: { text } });
+    // A free-tier model can take seconds; by now the user may be on another
+    // tab, and there is no form left to fill in.
+    if (!live(note)) return;
     if (result.amount) $("#price").value = result.amount;
     renderCategoryOptions($("#category"), result.category.id);
     $("#description").value = text.replace(/[€$£]?\s*\d+([.,]\d{1,2})?\s*(eur|euro|euros)?/i, "").trim();
@@ -635,12 +654,16 @@ async function suggest() {
     note.classList.toggle("warn", result.fell_back);
     note.hidden = false;
   } catch (err) {
-    note.textContent = `${err.message}. Pick a category yourself or try again.`;
-    note.classList.add("warn");
+    if (live(note)) {
+      note.textContent = `${err.message}. Pick a category yourself or try again.`;
+      note.classList.add("warn");
+    }
     toast(err.message, true);
   } finally {
-    button.disabled = false;
-    button.textContent = "Suggest";
+    if (live(button)) {
+      button.disabled = false;
+      button.textContent = "Suggest";
+    }
   }
 }
 
@@ -656,11 +679,14 @@ async function addExpense(event) {
   try {
     await api("/expenses", { method: "POST", body });
     state.lastAccountId = body.account_id;
-    $("#add-form").reset();
-    $("#date").value = todayISO();
-    $("#suggest-note").hidden = true;
-    renderCategoryOptions($("#category"));
-    renderAccountOptions($("#account"), state.lastAccountId);
+    const form = live($("#add-form"));
+    if (form) {
+      form.reset();
+      $("#date").value = todayISO();
+      $("#suggest-note").hidden = true;
+      renderCategoryOptions($("#category"));
+      renderAccountOptions($("#account"), state.lastAccountId);
+    }
     closeSheet();
     toast("Added");
     state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
