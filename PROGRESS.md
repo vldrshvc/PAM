@@ -330,3 +330,39 @@ also moved above the bar instead of being drawn across it.
 **Verified:** four-case race probe silent, nav fixed at scroll 0 / 900 / bottom,
 toast clears the bar by 7px, walkthrough clean, thirty-two contrast
 measurements pass, 128 tests green.
+
+## Fix — a deploy that never reached the phone
+
+**Reported:** installing the app gave an older build; deleting and installing
+again gave a different, still-not-current one.
+
+`StaticFiles` answers with `ETag` and `Last-Modified` but no `Cache-Control`,
+which lets a browser apply heuristic freshness (RFC 9111 §4.2.2): with no
+explicit policy it may reuse a cached copy for about a tenth of the file's age
+*without contacting the server at all*. On a deploy that has been live a week
+that is most of a day per file. An installed PWA is served by the same browser
+cache, so uninstalling the app does not clear it — hence the same stale build
+after a reinstall. Worse, each file ages on its own clock, so the second
+install could pair a revalidated `index.html` with a cached `app.js`, which is
+its own source of null errors on top of the real race fixed above.
+
+`app/webclient.py` mounts the client through a `StaticFiles` subclass that
+states a policy per file. `index.html` and `manifest.json` are `no-cache` —
+always revalidated, and an unchanged shell answers 304 from an in-memory ETag.
+The shell's links are rewritten at start-up to carry the content hash of the
+file they point at (`app.js?v=b606c119`), and a file asked for by its own hash
+is `public, max-age=31536000, immutable`. Anything asked for without the right
+hash falls back to `no-cache`, so the safe answer is the default and only a
+fingerprinted URL earns the fast one. A deploy changes the bytes, the hash and
+therefore the cache entry: nothing has to expire.
+
+**Note for the already-installed phone:** the *old* `index.html` is still in
+the browser cache under the old heuristic, so this fix cannot reach it by
+itself. One clear of the site's data (Chrome → Site settings → the site →
+Clear & reset), or one hard reload, and it never happens again.
+
+**Verified:** five tests in `tests/test_static.py` cover the shell being
+revalidated, the links carrying the real hash of each file, a hashed URL being
+immutable, an unhashed or stale one falling back to `no-cache`, and an
+unchanged shell answering 304. Measured over HTTP as well. Walkthrough and both
+probes clean, 133 tests green.

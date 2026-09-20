@@ -5,9 +5,9 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
 from app.database import run_migrations, wait_for_db
+from app.webclient import WebClient
 from app.routers import account, accounts, auth, categories, categorize, expenses, health, incomes, summary, targets, transfers, wellknown
 
 
@@ -44,8 +44,10 @@ app.include_router(summary.router)
 app.include_router(categorize.router)
 
 # The mobile web client. Plain static files; every action it takes is one
-# of the API calls above, so it needs no server-side code of its own.
-app.mount("/app", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="app")
+# of the API calls above, so it needs no server-side code of its own. It is
+# mounted through WebClient only so that each file says how long a browser may
+# reuse it, which is what makes a deploy reach an already-installed phone.
+app.mount("/app", WebClient(directory=Path(__file__).parent / "static"), name="app")
 
 
 @app.get("/", include_in_schema=False)
