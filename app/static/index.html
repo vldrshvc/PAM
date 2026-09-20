@@ -61,21 +61,6 @@
       <button type="button" id="load-more" class="more">Earlier</button>
     </section>
 
-    <section class="card">
-      <h2>Targets</h2>
-      <ul id="target-list" class="list"></ul>
-      <form id="target-form" class="stack">
-        <div class="row">
-          <input id="target-name" placeholder="Goal" required maxlength="50">
-          <input id="target-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
-        </div>
-        <div class="row">
-          <input id="target-date" type="date" required>
-          <button type="submit">Set target</button>
-        </div>
-      </form>
-    </section>
-
     <button type="button" id="fab" class="fab" aria-label="Add an entry" aria-haspopup="dialog"></button>
 
     <div id="sheet" class="sheet" hidden>
@@ -150,6 +135,21 @@
         <div><span class="label">Net this month</span><span id="m-net">–</span></div>
       </div>
       <ul id="month-list" class="list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>Targets</h2>
+      <ul id="target-list" class="list"></ul>
+      <form id="target-form" class="stack">
+        <div class="row">
+          <input id="target-name" placeholder="Goal" required maxlength="50">
+          <input id="target-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Amount" required>
+        </div>
+        <div class="row">
+          <input id="target-date" type="date" required>
+          <button type="submit">Set target</button>
+        </div>
+      </form>
     </section>
   </template>
 

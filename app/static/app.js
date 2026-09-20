@@ -299,8 +299,6 @@ async function showToday() {
   renderAccountOptions($("#transfer-from", view), state.accounts[0]?.id);
   renderAccountOptions($("#transfer-to", view), state.accounts[1]?.id ?? state.accounts[0]?.id);
   $("#transfer-form", view).addEventListener("submit", addTransfer);
-  $("#target-date", view).value = todayISO();
-  $("#target-form", view).addEventListener("submit", addTarget);
   for (const button of view.querySelectorAll("#kind button")) {
     button.addEventListener("click", () => setKind(button.dataset.kind));
   }
@@ -344,6 +342,13 @@ function closeSheet() {
 // --- targets -------------------------------------------------------------
 
 const STATUS_LABELS = { on_track: "On track", behind: "Behind", achieved: "Achieved", expired: "Expired" };
+
+// Targets live with the budgets: both answer "am I on course this month",
+// and neither should be buried under a long history.
+async function refreshTargets() {
+  const targets = await api(`/targets?tz=${encodeURIComponent(TZ)}`);
+  renderTargets(targets);
+}
 
 function renderTargets(targets) {
   const list = $("#target-list");
@@ -393,7 +398,7 @@ async function addTarget(event) {
     $("#target-form").reset();
     $("#target-date").value = todayISO();
     toast("Target set");
-    await refreshSummary();
+    await refreshTargets();
   } catch (err) {
     toast(err.message, true);
   }
@@ -403,7 +408,7 @@ async function deleteTarget(target) {
   if (!confirm(`Delete target "${target.name}"?`)) return;
   try {
     await api(`/targets/${target.id}`, { method: "DELETE" });
-    await refreshSummary();
+    await refreshTargets();
   } catch (err) {
     toast(err.message, true);
   }
@@ -518,7 +523,6 @@ async function refreshSummary() {
   const remaining = $("#remaining");
   remaining.textContent = s.budget_total === "0.00" ? "no budget" : money(s.remaining_total);
   remaining.classList.toggle("over", s.over_budget);
-  renderTargets(s.targets);
 }
 
 const SOURCE_LABELS = { work: "Work", friend: "Friend", debt: "Debt", bonus: "Bonus", other: "Other" };
@@ -676,8 +680,10 @@ async function deleteExpense(expense) {
 }
 
 async function showMonth() {
-  render("tpl-month");
-  const s = await api(`/summary/monthly?tz=${encodeURIComponent(TZ)}`);
+  const view = render("tpl-month");
+  $("#target-date", view).value = todayISO();
+  $("#target-form", view).addEventListener("submit", addTarget);
+  const [s] = await Promise.all([api(`/summary/monthly?tz=${encodeURIComponent(TZ)}`), refreshTargets()]);
   $("#month-title").textContent = new Date(`${s.month}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   $("#m-spent").textContent = money(s.spent_total);
   $("#m-earned").textContent = `+${money(s.earned_total)}`;

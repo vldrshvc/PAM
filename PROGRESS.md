@@ -275,3 +275,21 @@ errors; 128 tests green.
 **Known gaps:** no in-app theme toggle. The feed has no filter or search yet —
 reaching a specific old purchase means widening the window. Screenshots are
 headless renders, not photographs of the phone.
+
+## Targets move to the month tab
+
+**Why:** targets sat at the bottom of the home screen, which is now an
+unbounded history — with a few weeks of entries they were unreachable.
+
+They moved under the category budgets on the Month tab, which is the screen
+that already answers "am I on course this month". The daily summary still
+carries `targets` (the Android widget reads them there, and the contract only
+allows additions), but the client no longer renders them from it: the month
+view calls `GET /targets?tz=` on mount, and adding or deleting one refreshes
+that list rather than the whole summary.
+
+**Verified:** the walkthrough now sets a target on the Month tab, checks the
+home screen has no target form at all, adds income on the home tab, and comes
+back to Month to see the per-day figure drop from €34.37 to €17.70 with the
+status chip reading "On track". Amounts stay aligned, the smallest control is
+44px, all thirty-two contrast measurements pass, 128 tests green.

@@ -24,7 +24,9 @@ single component block, so changing the look means changing values, not markup.
 6. **The screen is a record, adding is an act.** The home screen shows the
    history and nothing else; the forms live in a sheet behind a floating "+",
    so the page you land on answers "what did I spend?" without scrolling past
-   a form to get there.
+   a form to get there. Anything that answers a different question — limits,
+   targets — belongs on the tab that asks it, not below a list that grows
+   without bound.
 
 ## Colour
 
