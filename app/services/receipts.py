@@ -19,11 +19,10 @@ from typing import Protocol
 
 from app.models import Category, quantize_money
 from app.services.categories import UNCATEGORIZED_NAME
+from app.services.fx import RateTable, rate_on, to_euro
 
 MAX_MERCHANT = 120
-# Every amount in the app is euro; there is no conversion anywhere, so a
-# receipt in another currency has to be refused rather than recorded as if
-# its number were euro. Spellings a till actually prints, as well as the code.
+# Spellings a till actually prints, as well as the code.
 EURO = {"EUR", "EURO", "EUROS", "€"}
 # A receipt cannot be from the future; one day of slack covers a till whose
 # clock disagrees with the user's timezone.
@@ -40,17 +39,26 @@ class ReceiptUnreadableError(ValueError):
     """The photo produced no total worth showing the user."""
 
 
-class ReceiptCurrencyError(ValueError):
-    """The receipt is priced in a currency this app does not keep books in."""
+@dataclass(frozen=True)
+class Conversion:
+    """What a foreign total was before it became euro, so the user can check."""
+
+    amount: Decimal
+    currency: str
+    per_euro: Decimal
+    rate_date: dt.date
 
 
 @dataclass(frozen=True)
 class ScannedReceipt:
+    # Always euro: the ledger has one currency and this is it.
     total: Decimal
     merchant: str | None
     date: dt.date | None
     category: Category
     fell_back: bool
+    # None when the receipt was already in euro.
+    converted: Conversion | None = None
 
 
 SYSTEM_PROMPT = (
@@ -119,21 +127,18 @@ def parse_answer(answer: str) -> dict:
     return parsed
 
 
-def check_currency(value: object) -> None:
-    """Silence is taken as euro; a stated other currency is a refusal.
+def parse_currency(value: object) -> str | None:
+    """The currency the receipt is priced in, or None for "same as always".
 
-    The model cannot always find a currency on a receipt, and most of this
-    user's are euro, so an absent answer carries on as before. A currency it
-    did read and that is not euro would be recorded as a euro amount, which is
-    a wrong number in the ledger, so it stops here instead.
+    Silence means euro: the model cannot always find a currency on a receipt,
+    and most of these are Irish. A stated one is converted.
     """
     if not isinstance(value, str):
-        return
+        return None
     code = value.strip().upper()
-    if code and code not in EURO:
-        raise ReceiptCurrencyError(
-            f"This receipt is in {code}. PAM keeps everything in euro, so add it by hand."
-        )
+    if not code or code in EURO:
+        return None
+    return code
 
 
 def parse_total(value: object) -> Decimal:
@@ -175,7 +180,14 @@ def match_category(answer: object, categories: list[Category]) -> Category | Non
     return None
 
 
-def scan(image: bytes, media_type: str, categories: list[Category], reader: ImageReader, today: dt.date) -> ScannedReceipt:
+def scan(
+    image: bytes,
+    media_type: str,
+    categories: list[Category],
+    reader: ImageReader,
+    today: dt.date,
+    rates: RateTable,
+) -> ScannedReceipt:
     uncategorized = next(c for c in categories if c.name == UNCATEGORIZED_NAME)
     answer = reader.read_image(
         SYSTEM_PROMPT,
@@ -184,12 +196,26 @@ def scan(image: bytes, media_type: str, categories: list[Category], reader: Imag
         media_type,
     )
     parsed = parse_answer(answer)
-    check_currency(parsed.get("currency"))
     matched = match_category(parsed.get("category"), categories)
+    total = parse_total(parsed.get("total"))
+    date = parse_date(parsed.get("date"), today)
+
+    converted = None
+    currency = parse_currency(parsed.get("currency"))
+    if currency is not None:
+        # The rate that applied the day the receipt was printed, not the day
+        # it was photographed.
+        rate = rate_on(rates, currency, date or today)
+        converted = Conversion(
+            amount=total, currency=currency, per_euro=rate.per_euro, rate_date=rate.published
+        )
+        total = to_euro(total, rate)
+
     return ScannedReceipt(
-        total=parse_total(parsed.get("total")),
+        total=total,
         merchant=parse_merchant(parsed.get("merchant")),
-        date=parse_date(parsed.get("date"), today),
+        date=date,
         category=matched or uncategorized,
         fell_back=matched is None or matched.id == uncategorized.id,
+        converted=converted,
     )

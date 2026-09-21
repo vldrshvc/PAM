@@ -478,3 +478,48 @@ this project keeps the provider a configuration choice, not a code one.
 If it ever truncates again the server log says so outright, with the budget and
 the text that did arrive, and `completion_tokens` on the ordinary `llm ...`
 line shows how much the model actually wanted.
+
+## Foreign receipts are converted, not refused
+
+Refusing a receipt in lei was the safe answer, not a useful one. It is now
+converted to euro and the form is filled with the euro amount, because the
+ledger has exactly one currency and always will.
+
+**Where the rate comes from.** The European Central Bank's euro reference
+rates: free, no key, no sign-up, and the rate a set of Irish books would
+actually use. The ninety-day file rather than today's, so a receipt is
+converted at the rate in force **the day it was printed**, not the day it was
+photographed. The ECB publishes on working days only, so a Saturday receipt
+takes Friday's rate — the nearest published day at or before it, which is what
+an accountant does. A currency missing on its own day falls back the same way.
+
+**What is kept.** Only the euro amount, as an ordinary expense. The rate is
+not stored; the scan response carries the original amount, its currency, the
+rate and the day the ECB published it, and the client shows all four —
+"Read 57.90 RON → €11.41 (ECB Sep 18, 5.0755/€)" — so the number in the form
+never looks like it came from nowhere.
+
+**When it cannot.** A currency the ECB does not publish (UAH, for one) is a
+422 saying so by name, rather than a silent wrong number. If the ECB cannot be
+reached, the last good table keeps being served: a day-old reference rate beats
+refusing to read the receipt. Only with nothing cached at all does the scan
+fail.
+
+The split follows the rest of the project: `app/ecb.py` fetches and caches,
+`app/services/fx.py` parses, picks the day and divides, with no I/O.
+
+**Verified:** 22 new tests — reading the ECB's real file shape past its two
+namespaces, skipping a broken row without dying, a day's own rate, the weekend
+fallback, a currency missing on its day, a date before the file starts, an
+unpublished currency, four conversions including one currency stronger than the
+euro and an amount that rounds to nothing, plus the cache: fetched once,
+refetched when stale, stale copy served when the ECB is down, and an error only
+when there is nothing cached. The browser probe now scans a Romanian receipt
+end to end and checks the form fills with 11.41 and the note shows its working.
+212 tests green, thirty-six contrast measurements pass.
+
+**Not verified here:** the live ECB endpoint. The sandbox's proxy blocks
+www.ecb.europa.eu, so the tests and the browser probe run against the ECB's own
+file shape served locally. The first real scan of a foreign receipt is the
+proof; the server log prints "ECB rates loaded: N days, latest YYYY-MM-DD" when
+the file arrives.

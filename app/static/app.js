@@ -73,6 +73,10 @@ function todayISO() {
   return isoDate(new Date());
 }
 
+function shortDate(iso) {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 function shiftDays(iso, days) {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + days);
@@ -730,9 +734,16 @@ async function scanReceipt(event) {
     renderCategoryOptions($("#category"), result.category.id);
     if (result.merchant) $("#description").value = result.merchant;
     if (result.date) $("#date").value = result.date;
+    // A converted total has to show its working, or the number in the form
+    // looks like it came from nowhere.
+    const c = result.converted;
+    const read = c
+      ? `Read ${c.amount} ${c.currency} → ${money(result.total)} (ECB ${shortDate(c.rate_date)}, ${c.per_euro}/€)`
+      : `Read ${money(result.total)}`;
+    const where = result.merchant ? ` at ${result.merchant}` : "";
     note.textContent = result.fell_back
-      ? `Read ${money(result.total)}${result.merchant ? ` at ${result.merchant}` : ""}. Pick a category yourself.`
-      : `Read ${money(result.total)}${result.merchant ? ` at ${result.merchant}` : ""} · ${result.category.name}`;
+      ? `${read}${where}. Pick a category yourself.`
+      : `${read}${where} · ${result.category.name}`;
     note.classList.toggle("warn", result.fell_back);
   } catch (err) {
     if (live(note)) {

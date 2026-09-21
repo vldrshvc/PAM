@@ -264,10 +264,23 @@ class CategorizeResponse(SQLModel):
     fell_back: bool
 
 
+class ConversionRead(SQLModel):
+    """What a foreign total was before it became euro, so it can be checked."""
+
+    amount: Decimal
+    currency: str
+    # Units of that currency per one euro, as the ECB quotes it.
+    per_euro: Decimal
+    # The day the ECB published that rate, which is the receipt's day or the
+    # last working day before it.
+    rate_date: dt.date
+
+
 class ReceiptScanResponse(SQLModel):
     """A suggestion to put in the add form. Nothing is stored until the user
     confirms it, and the photo itself is never stored at all."""
 
+    # Always euro, converted if the receipt was not.
     total: Decimal
     merchant: str | None
     # The date printed on the receipt, if it was legible; the client falls
@@ -276,6 +289,8 @@ class ReceiptScanResponse(SQLModel):
     category: CategoryRead
     # True when the model's category did not match one of the user's own.
     fell_back: bool
+    # Absent when the receipt was already in euro.
+    converted: ConversionRead | None = None
 
 
 # --- Summaries (public client contract, see README) ---------------------------

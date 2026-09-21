@@ -3,13 +3,15 @@ from sqlmodel import Session, select
 
 from app.config import settings
 from app.database import get_session
+from app.ecb import get_rates
 from app.llm import LLMClient, LLMNotConfiguredError, LLMUnavailableError, get_vision_client
 from app.models import Category, User
 from app.routers.summary import TzQuery, parse_timezone
-from app.schemas import CategoryRead, ReceiptScanResponse
+from app.schemas import CategoryRead, ConversionRead, ReceiptScanResponse
 from app.security import get_current_user
 from app.services.budget import today_in
-from app.services.receipts import ReceiptCurrencyError, ReceiptUnreadableError, scan
+from app.services.fx import RateTable, RateUnavailableError
+from app.services.receipts import ReceiptUnreadableError, scan
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
@@ -26,12 +28,25 @@ def vision_dependency() -> LLMClient:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
 
+def rates_dependency() -> RateTable:
+    """Euro reference rates, so a foreign receipt can be converted.
+
+    Fetched once and cached; a stale copy is served when the ECB is down,
+    because a day-old reference rate beats refusing to read the receipt.
+    """
+    try:
+        return get_rates()
+    except RateUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+
+
 @router.post("/scan", response_model=ReceiptScanResponse)
 async def scan_receipt(
     photo: UploadFile = File(description="A photograph of a receipt"),
     tz: str = TzQuery,
     session: Session = Depends(get_session),
     vision: LLMClient = Depends(vision_dependency),
+    rates: RateTable = Depends(rates_dependency),
     user: User = Depends(get_current_user),
 ) -> ReceiptScanResponse:
     """Read a receipt and suggest an expense. Creates nothing.
@@ -61,10 +76,10 @@ async def scan_receipt(
     statement = select(Category).where(Category.user_id == user.id).order_by(Category.id)
     categories = list(session.exec(statement).all())
     try:
-        result = scan(image, media_type, categories, vision, today_in(parse_timezone(tz)))
+        result = scan(image, media_type, categories, vision, today_in(parse_timezone(tz)), rates)
     except LLMUnavailableError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
-    except (ReceiptCurrencyError, ReceiptUnreadableError) as exc:
+    except (RateUnavailableError, ReceiptUnreadableError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return ReceiptScanResponse(
         total=result.total,
@@ -72,4 +87,7 @@ async def scan_receipt(
         date=result.date,
         category=CategoryRead.model_validate(result.category),
         fell_back=result.fell_back,
+        converted=ConversionRead.model_validate(result.converted, from_attributes=True)
+        if result.converted
+        else None,
     )

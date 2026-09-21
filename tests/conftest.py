@@ -22,7 +22,7 @@ from app.database import get_session
 from app.llm import LLMUnavailableError
 from app.main import app
 from app.routers.categorize import llm_dependency
-from app.routers.receipts import vision_dependency
+from app.routers.receipts import rates_dependency, vision_dependency
 
 
 def _test_database_url() -> str:
@@ -141,8 +141,45 @@ def fake_llm(client: TestClient) -> FakeLLM:
     return fake
 
 
+# The ECB's own file, trimmed to three working days and a handful of
+# currencies. Friday 18th, then a weekend with nothing published.
+ECB_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01"
+                 xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <gesmes:subject>Reference rates</gesmes:subject>
+  <gesmes:Sender><gesmes:name>European Central Bank</gesmes:name></gesmes:Sender>
+  <Cube>
+    <Cube time="2026-09-18">
+      <Cube currency="USD" rate="1.1742"/>
+      <Cube currency="GBP" rate="0.86530"/>
+      <Cube currency="RON" rate="5.0755"/>
+      <Cube currency="PLN" rate="4.2480"/>
+    </Cube>
+    <Cube time="2026-09-17">
+      <Cube currency="USD" rate="1.1710"/>
+      <Cube currency="RON" rate="5.0740"/>
+    </Cube>
+    <Cube time="2026-09-16">
+      <Cube currency="USD" rate="1.1688"/>
+      <Cube currency="GBP" rate="0.86610"/>
+      <Cube currency="RON" rate="5.0722"/>
+    </Cube>
+  </Cube>
+</gesmes:Envelope>
+"""
+
+
 @pytest.fixture
-def fake_vision(client: TestClient) -> FakeLLM:
+def rates() -> dict:
+    from app.services.fx import parse_rates
+
+    table = parse_rates(ECB_XML)
+    app.dependency_overrides[rates_dependency] = lambda: table
+    return table
+
+
+@pytest.fixture
+def fake_vision(client: TestClient, rates: dict) -> FakeLLM:
     fake = FakeLLM()
     app.dependency_overrides[vision_dependency] = lambda: fake
     return fake

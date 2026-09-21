@@ -57,5 +57,12 @@ class Settings(BaseSettings):
     # so a normal receipt arrives well under this.
     receipt_max_bytes: int = 4_000_000
 
+    # Converting a foreign receipt to euro. The ECB publishes one reference
+    # rate per currency per working day, free and without a key; the file
+    # changes once a day, so it is cached for six hours.
+    ecb_rates_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml"
+    fx_cache_seconds: float = 21_600.0
+    fx_timeout_seconds: float = 6.0
+
 
 settings = Settings()

@@ -12,12 +12,11 @@ import pytest
 
 from app.models import Category
 from app.services.receipts import (
-    ReceiptCurrencyError,
     ReceiptUnreadableError,
-    check_currency,
     extract_json,
     match_category,
     parse_answer,
+    parse_currency,
     parse_date,
     parse_merchant,
     parse_total,
@@ -116,23 +115,63 @@ def test_a_non_json_answer_is_422(client, auth, fake_vision):
     assert post_scan(client, headers).status_code == 422
 
 
-def test_a_receipt_in_another_currency_is_refused(client, auth, fake_vision):
-    # A Romanian till prints lei. Recorded as-is it would be a wrong number in
-    # a euro ledger, and there is no conversion anywhere in the app.
+def test_a_foreign_receipt_is_converted_to_euro(client, auth, fake_vision):
+    # A Romanian till prints lei; the ledger is euro. 57.90 / 5.0755 = 11.41.
     headers = auth()
-    fake_vision.answer = answer(total="57.90", currency="RON", merchant="SC K-MAX SRL")
+    fake_vision.answer = answer(
+        total="57.90", currency="RON", merchant="SC K-MAX SRL", date="2026-09-18"
+    )
+
+    body = post_scan(client, headers).json()
+
+    assert body["total"] == "11.41"
+    assert body["converted"] == {
+        "amount": "57.90",
+        "currency": "RON",
+        "per_euro": "5.0755",
+        "rate_date": "2026-09-18",
+    }
+
+
+def test_a_weekend_receipt_uses_the_last_published_rate(client, auth, fake_vision):
+    # Nothing is published on a Saturday, so Friday's rate applies.
+    headers = auth()
+    fake_vision.answer = answer(total="57.90", currency="RON", date="2026-09-19")
+
+    body = post_scan(client, headers).json()
+
+    assert body["converted"]["rate_date"] == "2026-09-18"
+
+
+def test_a_receipt_with_no_legible_date_is_converted_at_todays_rate(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = answer(total="10.00", currency="USD", date=None)
+
+    body = post_scan(client, headers).json()
+
+    # today is well past the fixture's last day, so its latest rate applies
+    assert body["converted"]["rate_date"] == "2026-09-18"
+    assert body["converted"]["per_euro"] == "1.1742"
+
+
+def test_a_euro_receipt_is_not_converted(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = answer(currency="EUR")
+
+    body = post_scan(client, headers).json()
+
+    assert body["total"] == "12.40"
+    assert body["converted"] is None
+
+
+def test_a_currency_the_ecb_does_not_publish_is_422(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = answer(total="500.00", currency="UAH")
 
     response = post_scan(client, headers)
 
     assert response.status_code == 422
-    assert "RON" in response.json()["detail"]
-
-
-def test_a_euro_receipt_is_not_refused(client, auth, fake_vision):
-    headers = auth()
-    fake_vision.answer = answer(currency="EUR")
-
-    assert post_scan(client, headers).status_code == 200
+    assert "UAH" in response.json()["detail"]
 
 
 def test_an_answer_wrapped_in_chatter_is_still_read(client, auth, fake_vision):
@@ -198,15 +237,14 @@ def test_a_total_that_is_not_money_is_unreadable(raw):
         parse_total(raw)
 
 
-@pytest.mark.parametrize("code", ["RON", "ron", " gbp ", "USD", "PLN"])
-def test_a_non_euro_currency_stops_the_scan(code):
-    with pytest.raises(ReceiptCurrencyError):
-        check_currency(code)
+@pytest.mark.parametrize("raw, expected", [("RON", "RON"), ("ron", "RON"), (" gbp ", "GBP")])
+def test_a_foreign_currency_is_read_as_its_code(raw, expected):
+    assert parse_currency(raw) == expected
 
 
-@pytest.mark.parametrize("code", ["EUR", "eur", "Euro", "\u20ac", "", None, 42])
-def test_euro_or_no_answer_carries_on(code):
-    assert check_currency(code) is None
+@pytest.mark.parametrize("raw", ["EUR", "eur", "Euro", "\u20ac", "", None, 42])
+def test_euro_or_no_answer_means_no_conversion(raw):
+    assert parse_currency(raw) is None
 
 
 def test_the_first_json_object_is_picked_out_of_the_answer():
