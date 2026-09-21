@@ -32,7 +32,7 @@ FUTURE_SLACK = dt.timedelta(days=1)
 
 class ImageReader(Protocol):
     def read_image(
-        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 200
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int | None = None
     ) -> str: ...
 
 

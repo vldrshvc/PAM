@@ -461,3 +461,20 @@ race probes clean.
 **Still unverified:** whether the Romanian receipt now reads. It cannot be
 tested here — there is no vision key in this sandbox, and the stand-in model
 answers from a script. The next real failure will say which of the four it was.
+
+## Fix — the vision budget has to pay for the thinking
+
+The previous fix did its job: the Romanian receipt now fails with "The model's
+answer was cut off" rather than the generic message, which names the cause.
+Gemini reasons before it answers, and on the OpenAI-compatible endpoint those
+reasoning tokens are spent out of `max_tokens` — so a 500-token budget was
+gone before the first character of JSON.
+
+The budget is now `LLM_VISION_MAX_TOKENS`, default 2000. The answer itself is
+about sixty tokens; the rest is head-room for thinking. Deliberately not fixed
+by turning thinking off, because every provider spells that differently and
+this project keeps the provider a configuration choice, not a code one.
+
+If it ever truncates again the server log says so outright, with the budget and
+the text that did arrive, and `completion_tokens` on the ordinary `llm ...`
+line shows how much the model actually wanted.

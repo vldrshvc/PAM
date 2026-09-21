@@ -128,10 +128,10 @@ class FakeLLM:
         return self.answer
 
     def read_image(
-        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 200
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int | None = None
     ) -> str:
         self.images.append((image, media_type))
-        return self.complete(system, user, max_tokens)
+        return self.complete(system, user, max_tokens or 0)
 
 
 @pytest.fixture

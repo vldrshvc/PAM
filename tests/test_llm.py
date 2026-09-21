@@ -39,6 +39,29 @@ def test_a_complete_answer_comes_back(client):
     assert client.read_image("system", "user", b"jpeg bytes", "image/jpeg") == '{"total": "57.90"}'
 
 
+def test_the_configured_budget_is_what_gets_sent(client, monkeypatch):
+    # A reasoning model spends this thinking before it writes anything, so the
+    # budget has to cover the thinking, not just the sixty-token answer.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "llm_vision_max_tokens", 1234)
+    sent = {}
+
+    def capture(**kwargs):
+        sent.update(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content="{}"))],
+            usage=None,
+        )
+
+    client._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=capture))
+    )
+    client.read_image("system", "user", b"jpeg bytes", "image/jpeg")
+
+    assert sent["max_tokens"] == 1234
+
+
 def test_the_picture_is_sent_inline_with_its_media_type(client):
     sent = {}
 

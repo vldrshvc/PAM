@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # think for longer, so they get their own, laxer timeout.
     llm_vision_model: str = "gemini-3.5-flash"
     llm_vision_timeout_seconds: float = 45.0
+    # Generous, because a reasoning model spends this budget thinking before
+    # it writes a character of the answer, and a budget that runs out mid-JSON
+    # produces nothing usable. The answer itself is about sixty tokens.
+    llm_vision_max_tokens: int = 2000
     # The photo is never stored; this only bounds what one request may cost
     # in memory and in provider tokens. The client downscales before sending,
     # so a normal receipt arrives well under this.

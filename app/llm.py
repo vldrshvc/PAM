@@ -36,7 +36,7 @@ class LLMClient:
         return self._chat(system, user, max_tokens=max_tokens)
 
     def read_image(
-        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 500
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int | None = None
     ) -> str:
         """Same call with a picture attached, inline as a data URL.
 
@@ -51,7 +51,7 @@ class LLMClient:
                 {"type": "text", "text": user},
                 {"type": "image_url", "image_url": {"url": data_url}},
             ],
-            max_tokens=max_tokens,
+            max_tokens=max_tokens or settings.llm_vision_max_tokens,
         )
 
     def _chat(self, system: str, user: object, max_tokens: int) -> str:
