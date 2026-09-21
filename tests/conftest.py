@@ -188,8 +188,11 @@ def rates():
                 raise CurrencyNotPublishedError(f"{currency.upper()} is not published by the NBU")
             return parse_nbu(NBU_JSON, on)
 
+    from app.routers.notifications import rates_dependency as notification_rates
+
     chain = Chain((EcbRates(parse_rates(ECB_XML)), StubHryvnia()))
     app.dependency_overrides[rates_dependency] = lambda: chain
+    app.dependency_overrides[notification_rates] = lambda: chain
     return chain
 
 

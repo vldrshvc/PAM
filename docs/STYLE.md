@@ -114,6 +114,11 @@ the safe-area inset at the bottom so the last card clears the fixed bar.
   it, because moving money is neither spending nor earning.
 - **Add button (`.fab`)** — a 58px disc in the accent, floating clear of the
   bottom bar, carrying a pen-drawn plus.
+- **Pencilled row (`.list li.pending`)** — an entry that came from a
+  notification and has not been confirmed: its left stroke is a dashed pencil
+  line, its title drops to pencil grey and its amount goes italic. It is
+  tappable rather than carrying a tick of its own, because a second 44px
+  button in a 360px row costs exactly the width the title needs.
 - **Scan slot (`.scan`)** — a dashed full-width frame at the top of the expense
   form, split in two by a dashed rule: photograph the receipt now, or pick one
   already in the gallery. A place to tuck a photograph in, rather than a button

@@ -573,15 +573,24 @@ async function refreshFeed() {
   };
   for (const e of expenses) {
     const day = bucket(e.date);
-    day.spent += Number(e.price);
-    day.rows.push(
-      li({
-        title: e.description || categoryName(e.category_id),
-        sub: [e.description ? categoryName(e.category_id) : "", accountName(e.account_id)].filter(Boolean).join(" · "),
-        amount: money(e.price),
-        onDelete: () => deleteExpense(e),
-      })
-    );
+    // A pending expense is a rumour from a notification: it is shown, but it
+    // counts towards nothing until it is confirmed, here or on the server.
+    const pending = e.status === "pending";
+    if (!pending) day.spent += Number(e.price);
+    const row = li({
+      title: e.description || categoryName(e.category_id),
+      sub: [e.description ? categoryName(e.category_id) : "", accountName(e.account_id)].filter(Boolean).join(" · "),
+      amount: money(e.price),
+      muted: pending,
+      onDelete: () => deleteExpense(e),
+    });
+    if (pending) {
+      // Tapping the row confirms it. A second button would cost 44px of a
+      // 360px row, which is what the title needs to stay readable.
+      row.classList.add("pending");
+      row.querySelector(".main").addEventListener("click", () => confirmExpense(e));
+    }
+    day.rows.push(row);
   }
   for (const i of incomes) {
     const day = bucket(i.date);
@@ -616,6 +625,9 @@ async function refreshFeed() {
     items.push(dayHeader(date, day.spent, day.earned), ...day.rows);
   }
   fillList($("#feed"), items, `Nothing in the last ${state.feedDays} days.`);
+  // Only explained when there is something to explain.
+  const hint = $("#pending-hint");
+  if (hint) hint.hidden = !expenses.some((e) => e.status === "pending");
   return expenses.length + incomes.length + transfers.length;
 }
 
@@ -783,6 +795,16 @@ async function addExpense(event) {
     }
     closeSheet();
     toast("Added");
+    state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function confirmExpense(expense) {
+  try {
+    await api(`/expenses/${expense.id}/confirm`, { method: "POST" });
+    toast("Confirmed");
     state.feedCount = (await Promise.all([refreshSummary(), refreshFeed()]))[1];
   } catch (err) {
     toast(err.message, true);

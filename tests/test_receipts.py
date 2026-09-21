@@ -1,26 +1,11 @@
 """POST /receipts/scan: read a photo, suggest an expense, store nothing.
 
-The unit tests below the endpoint ones cover the parsing, because that is
-where a model's answer is turned into money and a date.
+Reading a model's answer is tested in test_answers.py, which is where that
+lives now that the notification reader shares it.
 """
 
-import datetime as dt
 import json
-from decimal import Decimal
 
-import pytest
-
-from app.models import Category
-from app.services.receipts import (
-    ReceiptUnreadableError,
-    extract_json,
-    match_category,
-    parse_answer,
-    parse_currency,
-    parse_date,
-    parse_merchant,
-    parse_total,
-)
 
 PHOTO = ("receipt.jpg", b"not really a jpeg, the model is faked", "image/jpeg")
 
@@ -237,84 +222,3 @@ def test_a_provider_failure_is_502(client, auth, fake_vision):
 
 def test_scanning_needs_a_token(client, fake_vision):
     assert client.post("/receipts/scan", files={"photo": PHOTO}).status_code == 401
-
-
-# --- parsing -----------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "raw, expected",
-    [("12.40", "12.40"), (12.4, "12.40"), ("12,40", "12.40"), ("€12.40", "12.40"), (" 7 ", "7.00"), ("12.404", "12.40")],
-)
-def test_a_total_is_read_as_money(raw, expected):
-    assert parse_total(raw) == Decimal(expected)
-
-
-@pytest.mark.parametrize("raw", [None, "", "free", "0", "-3.00", True])
-def test_a_total_that_is_not_money_is_unreadable(raw):
-    with pytest.raises(ReceiptUnreadableError):
-        parse_total(raw)
-
-
-@pytest.mark.parametrize("raw, expected", [("RON", "RON"), ("ron", "RON"), (" gbp ", "GBP")])
-def test_a_foreign_currency_is_read_as_its_code(raw, expected):
-    assert parse_currency(raw) == expected
-
-
-@pytest.mark.parametrize("raw", ["EUR", "eur", "Euro", "\u20ac", "", None, 42])
-def test_euro_or_no_answer_means_no_conversion(raw):
-    assert parse_currency(raw) is None
-
-
-def test_the_first_json_object_is_picked_out_of_the_answer():
-    assert extract_json('note {"a": 1} tail') == '{"a": 1}'
-    assert extract_json('{"m": "Spar {city}"}') == '{"m": "Spar {city}"}'
-    assert extract_json('{"m": "a \\" b {"}') == '{"m": "a \\" b {"}'
-    assert extract_json('{"a": {"b": 2}} then {"c": 3}') == '{"a": {"b": 2}}'
-
-
-def test_an_answer_with_no_object_at_all_is_unreadable():
-    with pytest.raises(ReceiptUnreadableError):
-        extract_json("no braces here")
-
-
-def test_a_fenced_json_answer_is_still_read():
-    assert parse_answer('```json\n{"total": "5.00"}\n```') == {"total": "5.00"}
-
-
-@pytest.mark.parametrize("raw", ["not json", "[1, 2]", '"just a string"', "{broken"])
-def test_an_answer_that_is_not_an_object_is_unreadable(raw):
-    with pytest.raises(ReceiptUnreadableError):
-        parse_answer(raw)
-
-
-def test_a_date_on_the_receipt_is_kept():
-    assert parse_date("2026-09-18", dt.date(2026, 9, 20)) == dt.date(2026, 9, 18)
-
-
-def test_a_date_from_the_future_is_dropped():
-    # One day of slack for a till clock in another timezone; beyond that the
-    # model misread it, and today is a better guess than a wrong date.
-    today = dt.date(2026, 9, 20)
-    assert parse_date("2026-09-21", today) == dt.date(2026, 9, 21)
-    assert parse_date("2026-09-22", today) is None
-
-
-@pytest.mark.parametrize("raw", [None, 42, "18/09/2026", "yesterday"])
-def test_an_unusable_date_is_dropped(raw):
-    assert parse_date(raw, dt.date(2026, 9, 20)) is None
-
-
-def test_a_merchant_is_tidied_and_capped():
-    assert parse_merchant("  SuperValu\n Rathmines ") == "SuperValu Rathmines"
-    assert len(parse_merchant("x" * 500)) == 120
-    assert parse_merchant("   ") is None
-    assert parse_merchant(None) is None
-
-
-def test_a_category_must_match_exactly():
-    categories = [Category(id=1, name="Groceries", user_id=1)]
-    assert match_category("groceries", categories) is not None
-    assert match_category('"Groceries".', categories) is not None
-    assert match_category("Grocery", categories) is None
-    assert match_category(None, categories) is None

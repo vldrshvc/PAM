@@ -563,3 +563,71 @@ reaches the log file after start-up and they could not be read there.
 **Not verified here:** the live NBU endpoint, blocked by the sandbox's proxy
 exactly like the ECB's. Both are exercised against their documented shapes
 served locally.
+
+## Notification parsing — the server half
+
+A payment notification from a banking app now becomes a pencilled-in entry the
+user taps to confirm. This is the server and web half; the Android listener is
+the next phase, and nothing here needs it — the endpoint takes a notification
+from anything that can post JSON.
+
+**Pending was already the right shape.** `ExpenseStatus` and the rule that
+`confirmed` alone counts towards balances, budgets and summaries were built in
+phase one and never used. They are what this feature is made of: what comes
+out of `/notifications` is a `pending` expense that moves no number at all
+until the user says so. A notification is a rumour about money, not a receipt.
+
+**Money in is not an expense.** The model is asked which way the money went,
+and only "out" creates anything. "You received €850" would otherwise become an
+€850 spend. Money in is reported (`outcome: "incoming"`) rather than recorded,
+because an income has a source the user picks and guessing one from a push
+notification is worse than asking. Balance updates, card deliveries, promotions
+and login alerts come back as `ignored`.
+
+**The same notification must not land twice.** A listener re-posts when a
+notification is updated and again when it restarts, so each carries a key,
+unique per user by database constraint, and a repeat returns the expense that
+already exists with `outcome: "duplicate"`.
+
+**Two filters, one rule.** The phone decides only whether a notification could
+possibly be about money — a number beside a currency marker — and the server
+applies the same regex again before spending a token. A message from a friend
+never leaves the phone, and never reaches the model if something else calls the
+endpoint.
+
+**Which account.** An Android package is something like `com.revolut.revolut`,
+so its segments are matched against the user's account and bank names. A miss
+falls back to the default account, which is the right answer for cash-like
+spending anyway, and the user can change it before confirming.
+
+**Refactor that came with it.** Reading a receipt and reading a notification
+are the same job — ask for a small JSON object, then distrust every value in
+it — so that half moved to `app/services/answers.py`: pulling the object out
+of whatever the provider wrapped it in, and validating money, currency, dates,
+text and categories. `receipts.py` and `notifications.py` now hold only their
+own prompt and assembly, and the parsing tests moved to `tests/test_answers.py`
+where they are tested once rather than twice through two endpoints.
+
+**In the client.** A pending row is drawn pencilled in: dashed left stroke,
+grey title, italic amount, and tapping it confirms. It deliberately has no tick
+button — a second 44px target in a 360px row truncated the shop name to
+"Supe…", which the measurement caught. A note under the list explains the
+pencilling, and only appears when something is pending.
+
+**Verified:** 29 new tests — a payment becoming pending, pending counting
+towards nothing (`spent_today` and the balance both still 0.00), confirming
+putting it in the books, confirming twice being harmless, another user's
+pending expense being 404, listing by status, money in and non-transactions
+creating nothing, a message never reaching the model at all, the same key
+twice making one expense, the same key for two users making two, the account
+guessed from the package, an unrecognised app falling back, an invented
+category falling back, a foreign payment converted, a provider failure as 502,
+an unreadable answer as 422, and eleven texts through the money filter in four
+languages. `design/notifyprobe.mjs` posts three notifications into a live
+browser session and checks the pending row appears, moves no total, and
+confirming it moves €12.40 into `spent today`. 258 tests green, thirty-six
+contrast measurements pass, the walkthrough and all three probes are clean.
+
+**Known gaps:** no pending *incomes* — money arriving is reported and dropped.
+No mute list yet; that belongs with the phone, which is what learns that an app
+never produces money notifications.

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Account, Category, Expense, User
+from app.models import Account, Category, Expense, ExpenseStatus, User
 from app.schemas import ExpenseCreate, ExpenseRead, ExpenseUpdate
 from app.security import get_current_user
 from app.services.accounts import default_account
@@ -75,6 +75,9 @@ def list_expenses(
     date_to: date | None = Query(default=None, description="Inclusive upper bound"),
     category_id: int | None = None,
     account_id: int | None = None,
+    status_is: ExpenseStatus | None = Query(
+        default=None, alias="status", description="Only pending, or only confirmed"
+    ),
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ) -> list[Expense]:
@@ -92,6 +95,8 @@ def list_expenses(
         statement = statement.where(Expense.category_id == category_id)
     if account_id is not None:
         statement = statement.where(Expense.account_id == account_id)
+    if status_is is not None:
+        statement = statement.where(Expense.status == status_is)
     return list(session.exec(statement.order_by(Expense.date.desc(), Expense.id.desc())).all())
 
 
@@ -125,6 +130,27 @@ def update_expense(
             detail="price and date cannot be null",
         )
     expense.sqlmodel_update(changes)
+    session.add(expense)
+    session.commit()
+    session.refresh(expense)
+    return expense
+
+
+@router.post("/{expense_id}/confirm", response_model=ExpenseRead)
+def confirm_expense(
+    expense_id: int,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+) -> Expense:
+    """Accept a pending expense into the books.
+
+    Its own endpoint rather than a settable field on PATCH: confirming is the
+    one transition there is, it only goes one way, and a client should not be
+    able to push a confirmed expense back to pending by sending a status.
+    Confirming an already-confirmed one is a no-op, so a double tap is safe.
+    """
+    expense = get_expense_or_404(session, user.id, expense_id)
+    expense.status = ExpenseStatus.CONFIRMED
     session.add(expense)
     session.commit()
     session.refresh(expense)

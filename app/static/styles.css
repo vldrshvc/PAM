@@ -420,6 +420,18 @@ button.danger { width: 100%; color: var(--brick); border-color: var(--brick); ba
 }
 /* Only lists that actually have a delete button reserve the column, so a list
    with no actions at all keeps its full width for the amount and the bar. */
+/* A row waiting to be confirmed: pencilled in, not inked. Its stroke is
+   dashed, its text is grey, and it carries a tick of its own. */
+.list li.pending::before {
+  background: repeating-linear-gradient(
+    to bottom, var(--pencil) 0 4px, transparent 4px 8px
+  );
+  opacity: .7;
+}
+.list li.pending .title { color: var(--pencil); font-weight: 500; }
+.list li.pending .amount { font-style: italic; }
+.list li.pending .main { cursor: pointer; }
+
 .list .icon-gap { display: none; }
 .list:has(.icon) .icon-gap { display: block; flex: 0 0 auto; width: var(--tap); }
 .list .icon:hover::before, .list .icon:active::before { background: var(--brick); }

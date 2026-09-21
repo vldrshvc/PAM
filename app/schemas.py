@@ -295,6 +295,35 @@ class ReceiptScanResponse(SQLModel):
     converted: ConversionRead | None = None
 
 
+# --- Notifications ------------------------------------------------------------
+
+
+class NotificationIn(SQLModel):
+    """One notification the phone thought might be about money.
+
+    `key` is the phone's own identifier for it, stable across re-posts of the
+    same notification; it is what stops a restart of the listener from
+    booking everything twice.
+    """
+
+    key: str = Field(min_length=1, max_length=120)
+    package: str = Field(min_length=1, max_length=120, description="The Android app it came from")
+    text: str = Field(min_length=1, max_length=1000)
+    title: str | None = Field(default=None, max_length=200)
+
+
+class NotificationRead(SQLModel):
+    """What was done with it. Never an error for an ignorable notification:
+    most of them are, and the phone should not have to care."""
+
+    # "pending" when an expense was created, "duplicate" when this key was
+    # already seen, "incoming" for money in, "ignored" for anything else.
+    outcome: str
+    expense: ExpenseRead | None = None
+    # A line for the user explaining a conversion, when there was one.
+    note: str | None = None
+
+
 # --- Summaries (public client contract, see README) ---------------------------
 
 

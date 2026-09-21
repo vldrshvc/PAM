@@ -159,6 +159,9 @@ class ExpenseBase(SQLModel):
 
 class Expense(ExpenseBase, table=True):
     __tablename__ = "expenses"
+    # A phone re-posts the same notification when it is updated or when the
+    # listener restarts, so the same key must never make a second expense.
+    __table_args__ = (UniqueConstraint("user_id", "source_key", name="uq_expenses_user_source"),)
 
     id: int | None = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", index=True)
@@ -173,6 +176,9 @@ class Expense(ExpenseBase, table=True):
             nullable=False,
         ),
     )
+    # Where an auto-ingested expense came from, unique per user. Null for
+    # everything typed in by hand, and Postgres lets nulls repeat.
+    source_key: str | None = Field(default=None, max_length=120, index=True)
 
 
 class TransferBase(SQLModel):
