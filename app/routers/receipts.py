@@ -9,7 +9,7 @@ from app.routers.summary import TzQuery, parse_timezone
 from app.schemas import CategoryRead, ReceiptScanResponse
 from app.security import get_current_user
 from app.services.budget import today_in
-from app.services.receipts import ReceiptUnreadableError, scan
+from app.services.receipts import ReceiptCurrencyError, ReceiptUnreadableError, scan
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
 
@@ -64,7 +64,7 @@ async def scan_receipt(
         result = scan(image, media_type, categories, vision, today_in(parse_timezone(tz)))
     except LLMUnavailableError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
-    except ReceiptUnreadableError as exc:
+    except (ReceiptCurrencyError, ReceiptUnreadableError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return ReceiptScanResponse(
         total=result.total,

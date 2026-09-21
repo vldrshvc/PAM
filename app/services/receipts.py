@@ -13,7 +13,6 @@ decimal with at most two places, or the scan is treated as unreadable.
 
 import datetime as dt
 import json
-import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Protocol
@@ -22,6 +21,10 @@ from app.models import Category, quantize_money
 from app.services.categories import UNCATEGORIZED_NAME
 
 MAX_MERCHANT = 120
+# Every amount in the app is euro; there is no conversion anywhere, so a
+# receipt in another currency has to be refused rather than recorded as if
+# its number were euro. Spellings a till actually prints, as well as the code.
+EURO = {"EUR", "EURO", "EUROS", "€"}
 # A receipt cannot be from the future; one day of slack covers a till whose
 # clock disagrees with the user's timezone.
 FUTURE_SLACK = dt.timedelta(days=1)
@@ -37,6 +40,10 @@ class ReceiptUnreadableError(ValueError):
     """The photo produced no total worth showing the user."""
 
 
+class ReceiptCurrencyError(ValueError):
+    """The receipt is priced in a currency this app does not keep books in."""
+
+
 @dataclass(frozen=True)
 class ScannedReceipt:
     total: Decimal
@@ -47,17 +54,54 @@ class ScannedReceipt:
 
 
 SYSTEM_PROMPT = (
-    "You read photographs of shop receipts. Reply with one JSON object and "
-    "nothing else, with exactly these keys: "
-    '"total" (the final amount actually paid, including tax and after any '
-    'discount, as a plain number such as 12.40), "merchant" (the shop name as '
-    'printed, or null), "date" (the purchase date as YYYY-MM-DD, or null if it '
-    'is not legible), and "category" (one name copied verbatim from the list '
-    "you are given). Never guess a total you cannot read: if the total is not "
-    "legible, set it to null."
+    "You read photographs of shop receipts. A receipt may be in any language, "
+    "and the total line may be labelled TOTAL, SUMA, SUMME, TOTALE, ИТОГО or "
+    "similar. Reply with one JSON object and nothing else, with exactly these "
+    'keys: "total" (the final amount actually paid, including tax and after '
+    'any discount, as a plain number such as 12.40), "currency" (the currency '
+    "the receipt is priced in, as a three-letter code such as EUR, RON or GBP, "
+    'copied from what is printed; null if nothing says), "merchant" (the shop '
+    'name as printed, or null), "date" (the purchase date as YYYY-MM-DD, '
+    'converting from whatever format is printed, or null if it is not '
+    'legible), and "category" (one name copied verbatim from the list you are '
+    "given). Never guess a total you cannot read: if the total is not legible, "
+    "set it to null."
 )
 
-_FENCE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
+def extract_json(answer: str) -> str:
+    """The first balanced {...} in the answer.
+
+    The model is asked for bare JSON and usually obliges, but providers wrap
+    it in a code fence, or in a sentence, or put a note after it. Being strict
+    about that turns a perfectly good reading of the paper into "could not
+    read this receipt", so the object is picked out of whatever came back.
+    Quoted braces inside strings are skipped, so a merchant called "{Spar}"
+    does not confuse the scan.
+    """
+    depth = 0
+    start = None
+    in_string = False
+    escaped = False
+    for index, char in enumerate(answer):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                return answer[start : index + 1]
+    raise ReceiptUnreadableError("Could not read this receipt")
 
 
 def build_user_prompt(category_names: list[str]) -> str:
@@ -66,14 +110,30 @@ def build_user_prompt(category_names: list[str]) -> str:
 
 
 def parse_answer(answer: str) -> dict:
-    """The model was asked for bare JSON; accept it wrapped in a code fence too."""
     try:
-        parsed = json.loads(_FENCE.sub("", answer).strip())
+        parsed = json.loads(extract_json(answer))
     except json.JSONDecodeError as exc:
         raise ReceiptUnreadableError("Could not read this receipt") from exc
     if not isinstance(parsed, dict):
         raise ReceiptUnreadableError("Could not read this receipt")
     return parsed
+
+
+def check_currency(value: object) -> None:
+    """Silence is taken as euro; a stated other currency is a refusal.
+
+    The model cannot always find a currency on a receipt, and most of this
+    user's are euro, so an absent answer carries on as before. A currency it
+    did read and that is not euro would be recorded as a euro amount, which is
+    a wrong number in the ledger, so it stops here instead.
+    """
+    if not isinstance(value, str):
+        return
+    code = value.strip().upper()
+    if code and code not in EURO:
+        raise ReceiptCurrencyError(
+            f"This receipt is in {code}. PAM keeps everything in euro, so add it by hand."
+        )
 
 
 def parse_total(value: object) -> Decimal:
@@ -124,6 +184,7 @@ def scan(image: bytes, media_type: str, categories: list[Category], reader: Imag
         media_type,
     )
     parsed = parse_answer(answer)
+    check_currency(parsed.get("currency"))
     matched = match_category(parsed.get("category"), categories)
     return ScannedReceipt(
         total=parse_total(parsed.get("total")),

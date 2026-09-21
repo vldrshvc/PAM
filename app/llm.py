@@ -36,7 +36,7 @@ class LLMClient:
         return self._chat(system, user, max_tokens=max_tokens)
 
     def read_image(
-        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 200
+        self, system: str, user: str, image: bytes, media_type: str, max_tokens: int = 500
     ) -> str:
         """Same call with a picture attached, inline as a data URL.
 
@@ -75,6 +75,11 @@ class LLMClient:
         choice = response.choices[0] if response.choices else None
         content = (choice.message.content if choice else None) or ""
         usage = response.usage
+        # A cut-off answer is not a bad answer, it is no answer: whatever
+        # parses it would be guessing at half a sentence.
+        if choice is not None and choice.finish_reason == "length":
+            logger.warning("llm answer truncated at max_tokens=%s: %r", max_tokens, content)
+            raise LLMUnavailableError("The model's answer was cut off")
         # One line per call so provider behaviour (latency, truncation,
         # hidden reasoning tokens) is visible in the server log.
         logger.info(
@@ -83,7 +88,7 @@ class LLMClient:
             time.monotonic() - started,
             choice.finish_reason if choice else None,
             usage.completion_tokens if usage else None,
-            content[:60],
+            content[:200],
         )
         return content
 

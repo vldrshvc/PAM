@@ -12,7 +12,10 @@ import pytest
 
 from app.models import Category
 from app.services.receipts import (
+    ReceiptCurrencyError,
     ReceiptUnreadableError,
+    check_currency,
+    extract_json,
     match_category,
     parse_answer,
     parse_date,
@@ -113,6 +116,34 @@ def test_a_non_json_answer_is_422(client, auth, fake_vision):
     assert post_scan(client, headers).status_code == 422
 
 
+def test_a_receipt_in_another_currency_is_refused(client, auth, fake_vision):
+    # A Romanian till prints lei. Recorded as-is it would be a wrong number in
+    # a euro ledger, and there is no conversion anywhere in the app.
+    headers = auth()
+    fake_vision.answer = answer(total="57.90", currency="RON", merchant="SC K-MAX SRL")
+
+    response = post_scan(client, headers)
+
+    assert response.status_code == 422
+    assert "RON" in response.json()["detail"]
+
+
+def test_a_euro_receipt_is_not_refused(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = answer(currency="EUR")
+
+    assert post_scan(client, headers).status_code == 200
+
+
+def test_an_answer_wrapped_in_chatter_is_still_read(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = f"Sure! Here is what I read:\n```json\n{answer()}\n```\nLet me know."
+
+    body = post_scan(client, headers).json()
+
+    assert body["total"] == "12.40"
+
+
 def test_a_photo_that_is_not_an_image_is_415(client, auth, fake_vision):
     response = post_scan(client, auth(), photo=("notes.txt", b"12.40", "text/plain"))
 
@@ -167,11 +198,34 @@ def test_a_total_that_is_not_money_is_unreadable(raw):
         parse_total(raw)
 
 
+@pytest.mark.parametrize("code", ["RON", "ron", " gbp ", "USD", "PLN"])
+def test_a_non_euro_currency_stops_the_scan(code):
+    with pytest.raises(ReceiptCurrencyError):
+        check_currency(code)
+
+
+@pytest.mark.parametrize("code", ["EUR", "eur", "Euro", "\u20ac", "", None, 42])
+def test_euro_or_no_answer_carries_on(code):
+    assert check_currency(code) is None
+
+
+def test_the_first_json_object_is_picked_out_of_the_answer():
+    assert extract_json('note {"a": 1} tail') == '{"a": 1}'
+    assert extract_json('{"m": "Spar {city}"}') == '{"m": "Spar {city}"}'
+    assert extract_json('{"m": "a \\" b {"}') == '{"m": "a \\" b {"}'
+    assert extract_json('{"a": {"b": 2}} then {"c": 3}') == '{"a": {"b": 2}}'
+
+
+def test_an_answer_with_no_object_at_all_is_unreadable():
+    with pytest.raises(ReceiptUnreadableError):
+        extract_json("no braces here")
+
+
 def test_a_fenced_json_answer_is_still_read():
     assert parse_answer('```json\n{"total": "5.00"}\n```') == {"total": "5.00"}
 
 
-@pytest.mark.parametrize("raw", ["not json", "[1, 2]", '"just a string"'])
+@pytest.mark.parametrize("raw", ["not json", "[1, 2]", '"just a string"', "{broken"])
 def test_an_answer_that_is_not_an_object_is_unreadable(raw):
     with pytest.raises(ReceiptUnreadableError):
         parse_answer(raw)

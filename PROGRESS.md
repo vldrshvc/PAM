@@ -415,3 +415,49 @@ the walkthrough and both race probes are clean.
 **Known gaps:** no line-item breakdown, only the total — splitting one receipt
 across categories is a bigger feature and was not asked for. Nothing detects
 that the same receipt was scanned twice.
+
+## Fix — the scanner on a real receipt, and picking from the gallery
+
+**Reported:** a Romanian supermarket receipt came back "Could not read this
+receipt. Type it in yourself." That message is the `parse_answer` path, so the
+model replied with something that was not JSON — four separate causes were in
+play, all of them fixed:
+
+1. **A truncated answer looked like a bad answer.** The vision call had a
+   200-token budget, and a model that reasons before it replies can spend the
+   whole of it before the JSON starts. `_chat` now raises on
+   `finish_reason == "length"` with "The model's answer was cut off" instead of
+   handing half an object to the parser, logs the truncated text, and the
+   budget is 500.
+2. **Bare JSON was demanded, not found.** Providers wrap the object in a code
+   fence, or in a sentence, or add a note after it. `extract_json` now picks
+   the first balanced `{...}` out of whatever came back, skipping braces inside
+   strings so a merchant called `{Spar}` does not confuse it.
+3. **The print was on the edge of legible.** A supermarket receipt is long,
+   thin and photographed from a distance; at 1600px its lines were marginal.
+   The client downscales to 2000px at quality 0.85 now — about 40 KB instead of
+   25 KB, which is nothing next to a failed read.
+4. **The receipt was in lei.** Every amount in the app is euro and nothing
+   converts, so reading 57.90 RON as €57.90 would have put a wrong number in
+   the ledger. The model is now asked for the currency, and a stated non-euro
+   one stops the scan with "This receipt is in RON. PAM keeps everything in
+   euro, so add it by hand." An absent answer still carries on as euro, since
+   the model cannot always find one and most of these receipts are Irish. The
+   prompt also says a receipt may be in any language and names what the total
+   line can be called.
+
+**Also asked for:** choosing a photo from the gallery instead of taking one.
+The two halves of the scan slot share one file input; `capture="environment"`
+is added before the click for the camera and removed for the gallery, which is
+the whole difference on Android.
+
+**Verified:** 21 new tests (the currency guard, JSON extraction out of chatter
+and nested objects, the truncation guard in the provider wrapper, and that the
+picture is sent inline with its own media type). `design/scanprobe.mjs` now
+also asserts each button sets `capture` correctly and both halves are 44px.
+190 tests green, thirty-six contrast measurements pass, walkthrough and both
+race probes clean.
+
+**Still unverified:** whether the Romanian receipt now reads. It cannot be
+tested here — there is no vision key in this sandbox, and the stand-in model
+answers from a script. The next real failure will say which of the four it was.

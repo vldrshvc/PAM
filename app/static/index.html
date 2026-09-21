@@ -77,8 +77,13 @@
           <button type="button" data-kind="transfer">Transfer</button>
         </div>
         <form id="add-form" class="stack">
-          <button type="button" id="scan-btn" class="scan">Scan a receipt</button>
-          <input id="receipt" type="file" accept="image/*" capture="environment" hidden>
+          <div class="scan">
+            <button type="button" id="scan-camera" class="scan-half">Photograph</button>
+            <button type="button" id="scan-gallery" class="scan-half">From gallery</button>
+          </div>
+          <!-- One input for both: the camera is opened by adding "capture"
+               before the click, the gallery by taking it off again. -->
+          <input id="receipt" type="file" accept="image/*" hidden>
           <div class="row">
             <input id="raw-text" placeholder='e.g. "SuperValu 12.40"' autocomplete="off">
             <button type="button" id="suggest-btn">Suggest</button>

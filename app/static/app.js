@@ -300,7 +300,8 @@ async function showToday() {
     }
   });
   $("#add-form", view).addEventListener("submit", addExpense);
-  $("#scan-btn", view).addEventListener("click", () => $("#receipt").click());
+  $("#scan-camera", view).addEventListener("click", () => pickReceipt(true));
+  $("#scan-gallery", view).addEventListener("click", () => pickReceipt(false));
   $("#receipt", view).addEventListener("change", scanReceipt);
 
   $("#income-date", view).value = todayISO();
@@ -675,9 +676,11 @@ async function suggest() {
 
 // A phone camera hands over 4000 pixels and several megabytes; a receipt only
 // has to stay legible, and the provider is paid by the pixel. So the photo is
-// shrunk here, before it ever leaves the device.
-const RECEIPT_MAX_EDGE = 1600;
-const RECEIPT_QUALITY = 0.82;
+// shrunk here, before it ever leaves the device. 2000 rather than something
+// smaller because a supermarket receipt is long, thin and photographed from a
+// distance: at 1600 its print is on the edge of what a model can read.
+const RECEIPT_MAX_EDGE = 2000;
+const RECEIPT_QUALITY = 0.85;
 
 async function shrink(file) {
   const bitmap = await createImageBitmap(file);
@@ -692,15 +695,28 @@ async function shrink(file) {
   );
 }
 
+// "capture" is what makes Android open the camera instead of the picker, so
+// adding and removing it is the whole difference between the two buttons.
+function pickReceipt(fromCamera) {
+  const input = $("#receipt");
+  if (fromCamera) input.setAttribute("capture", "environment");
+  else input.removeAttribute("capture");
+  input.click();
+}
+
 async function scanReceipt(event) {
   const file = event.target.files[0];
   // Let the same photo be picked twice in a row.
   event.target.value = "";
   if (!file) return;
   const note = $("#suggest-note");
-  const button = $("#scan-btn");
-  button.disabled = true;
-  button.textContent = "Reading…";
+  const slot = $(".scan");
+  const buttons = [...slot.querySelectorAll("button")];
+  const labels = buttons.map((b) => b.textContent);
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    b.textContent = i === 0 ? "Reading…" : "";
+  });
   note.textContent = "Reading the receipt, this takes a few seconds.";
   note.classList.remove("warn");
   note.hidden = false;
@@ -725,9 +741,11 @@ async function scanReceipt(event) {
     }
     toast(err.message, true);
   } finally {
-    if (live(button)) {
-      button.disabled = false;
-      button.textContent = "Scan a receipt";
+    if (live(slot)) {
+      buttons.forEach((b, i) => {
+        b.disabled = false;
+        b.textContent = labels[i];
+      });
     }
   }
 }
