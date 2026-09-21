@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # rate per currency per working day, free and without a key; the file
     # changes once a day, so it is cached for six hours.
     ecb_rates_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml"
+    # The ECB does not quote the hryvnia, so it comes from its own central
+    # bank instead, one date per request.
+    nbu_rates_url: str = "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange"
     fx_cache_seconds: float = 21_600.0
     fx_timeout_seconds: float = 6.0
 

@@ -169,13 +169,28 @@ ECB_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-@pytest.fixture
-def rates() -> dict:
-    from app.services.fx import parse_rates
+# The NBU answers one date at a time; this is the shape of one answer.
+NBU_JSON = b'[{"r030":978,"txt":"\xd0\x84\xd0\xb2\xd1\x80\xd0\xbe","rate":48.5031,"cc":"EUR","exchangedate":"18.09.2026"}]'
 
-    table = parse_rates(ECB_XML)
-    app.dependency_overrides[rates_dependency] = lambda: table
-    return table
+
+@pytest.fixture
+def rates():
+    """The real chain, with both banks' files served from memory."""
+    import httpx
+
+    from app.services.fx import Chain, EcbRates, parse_rates
+
+    class StubHryvnia:
+        def rate_on(self, currency, on):
+            from app.services.fx import UAH, CurrencyNotPublishedError, parse_nbu
+
+            if currency.upper() != UAH:
+                raise CurrencyNotPublishedError(f"{currency.upper()} is not published by the NBU")
+            return parse_nbu(NBU_JSON, on)
+
+    chain = Chain((EcbRates(parse_rates(ECB_XML)), StubHryvnia()))
+    app.dependency_overrides[rates_dependency] = lambda: chain
+    return chain
 
 
 @pytest.fixture

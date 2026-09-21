@@ -271,9 +271,11 @@ class ConversionRead(SQLModel):
     currency: str
     # Units of that currency per one euro, as the ECB quotes it.
     per_euro: Decimal
-    # The day the ECB published that rate, which is the receipt's day or the
+    # The day the bank published that rate, which is the receipt's day or the
     # last working day before it.
     rate_date: dt.date
+    # Which central bank quoted it: the ECB, or the NBU for the hryvnia.
+    source: str
 
 
 class ReceiptScanResponse(SQLModel):

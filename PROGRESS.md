@@ -523,3 +523,43 @@ www.ecb.europa.eu, so the tests and the browser probe run against the ECB's own
 file shape served locally. The first real scan of a foreign receipt is the
 proof; the server log prints "ECB rates loaded: N days, latest YYYY-MM-DD" when
 the file arrives.
+
+## The hryvnia, which the ECB does not quote
+
+Asked for: Ukrainian receipts. The ECB publishes euro reference rates for
+about thirty currencies and the hryvnia is not one of them, so it gets its own
+central bank — the NBU's exchange directory, which is free, needs no key, and
+has exactly the standing for the hryvnia that the ECB has for the euro. It
+answers one date at a time and quotes hryvnia per euro, which is already the
+convention here, so no cross rate is involved.
+
+**How the two fit together.** A small `Chain` asks each source in turn and
+moves on **only** when a source says it does not quote that currency at all.
+That distinction is the whole design: a currency the ECB does quote but not on
+some particular day is a gap in the ECB, not a job for a Ukrainian bank, so
+`CurrencyNotPublishedError` is a separate class from the plain unavailable
+error. Asking the NBU about lei would be nonsense, and a test asserts it never
+happens.
+
+Only the hryvnia goes through the NBU. Another currency the ECB skips is
+reported as unsupported by name rather than guessed at through a cross rate;
+"VND is not a currency PAM has a euro rate for" is a better answer than a
+number nobody can check.
+
+The rate now carries which bank said so, through `Conversion` and into the
+client, because "ECB Sep 18" on a rate the ECB never published would be a lie.
+The note reads "Read 500.00 UAH → €10.31 (NBU Sep 18, 48.5031/€)".
+
+**Verified:** 17 more tests — the NBU's row read as hryvnia per euro, its own
+`exchangedate` winning over the date asked for, six malformed answers refused,
+the per-day cache and the request it actually sends, other currencies never
+reaching it, an unreachable bank being an error rather than a guess, and four
+chain cases including the gap that must not fall through. The browser probe
+scans a Ukrainian receipt end to end and the form fills with €10.31. Two
+`caplog` assertions pin the log lines, since this sandbox's stdout never
+reaches the log file after start-up and they could not be read there.
+229 tests green.
+
+**Not verified here:** the live NBU endpoint, blocked by the sandbox's proxy
+exactly like the ECB's. Both are exercised against their documented shapes
+served locally.

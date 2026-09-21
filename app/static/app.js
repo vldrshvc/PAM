@@ -738,7 +738,7 @@ async function scanReceipt(event) {
     // looks like it came from nowhere.
     const c = result.converted;
     const read = c
-      ? `Read ${c.amount} ${c.currency} → ${money(result.total)} (ECB ${shortDate(c.rate_date)}, ${c.per_euro}/€)`
+      ? `Read ${c.amount} ${c.currency} → ${money(result.total)} (${c.source} ${shortDate(c.rate_date)}, ${c.per_euro}/€)`
       : `Read ${money(result.total)}`;
     const where = result.merchant ? ` at ${result.merchant}` : "";
     note.textContent = result.fell_back

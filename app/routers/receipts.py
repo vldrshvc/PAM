@@ -4,13 +4,14 @@ from sqlmodel import Session, select
 from app.config import settings
 from app.database import get_session
 from app.ecb import get_rates
+from app.nbu import HryvniaRates
 from app.llm import LLMClient, LLMNotConfiguredError, LLMUnavailableError, get_vision_client
 from app.models import Category, User
 from app.routers.summary import TzQuery, parse_timezone
 from app.schemas import CategoryRead, ConversionRead, ReceiptScanResponse
 from app.security import get_current_user
 from app.services.budget import today_in
-from app.services.fx import RateTable, RateUnavailableError
+from app.services.fx import Chain, EcbRates, RateLookup, RateUnavailableError
 from app.services.receipts import ReceiptUnreadableError, scan
 
 router = APIRouter(prefix="/receipts", tags=["receipts"])
@@ -28,14 +29,16 @@ def vision_dependency() -> LLMClient:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
 
-def rates_dependency() -> RateTable:
-    """Euro reference rates, so a foreign receipt can be converted.
+def rates_dependency() -> RateLookup:
+    """Where a euro rate comes from: the ECB, then the hryvnia's own bank.
 
-    Fetched once and cached; a stale copy is served when the ECB is down,
-    because a day-old reference rate beats refusing to read the receipt.
+    The ECB's table is fetched once and cached, and a stale copy is served
+    when it is down, because a day-old reference rate beats refusing to read
+    the receipt. The NBU is only asked about the hryvnia, and only when the
+    ECB has said it does not quote the currency at all.
     """
     try:
-        return get_rates()
+        return Chain((EcbRates(get_rates()), HryvniaRates()))
     except RateUnavailableError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
 
@@ -46,7 +49,7 @@ async def scan_receipt(
     tz: str = TzQuery,
     session: Session = Depends(get_session),
     vision: LLMClient = Depends(vision_dependency),
-    rates: RateTable = Depends(rates_dependency),
+    rates: RateLookup = Depends(rates_dependency),
     user: User = Depends(get_current_user),
 ) -> ReceiptScanResponse:
     """Read a receipt and suggest an expense. Creates nothing.

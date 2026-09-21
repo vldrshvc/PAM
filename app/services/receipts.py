@@ -19,7 +19,7 @@ from typing import Protocol
 
 from app.models import Category, quantize_money
 from app.services.categories import UNCATEGORIZED_NAME
-from app.services.fx import RateTable, rate_on, to_euro
+from app.services.fx import RateLookup, to_euro
 
 MAX_MERCHANT = 120
 # Spellings a till actually prints, as well as the code.
@@ -47,6 +47,8 @@ class Conversion:
     currency: str
     per_euro: Decimal
     rate_date: dt.date
+    # The central bank the rate came from.
+    source: str
 
 
 @dataclass(frozen=True)
@@ -186,7 +188,7 @@ def scan(
     categories: list[Category],
     reader: ImageReader,
     today: dt.date,
-    rates: RateTable,
+    rates: RateLookup,
 ) -> ScannedReceipt:
     uncategorized = next(c for c in categories if c.name == UNCATEGORIZED_NAME)
     answer = reader.read_image(
@@ -205,9 +207,13 @@ def scan(
     if currency is not None:
         # The rate that applied the day the receipt was printed, not the day
         # it was photographed.
-        rate = rate_on(rates, currency, date or today)
+        rate = rates.rate_on(currency, date or today)
         converted = Conversion(
-            amount=total, currency=currency, per_euro=rate.per_euro, rate_date=rate.published
+            amount=total,
+            currency=currency,
+            per_euro=rate.per_euro,
+            rate_date=rate.published,
+            source=rate.source,
         )
         total = to_euro(total, rate)
 

@@ -11,8 +11,19 @@ import httpx
 import pytest
 
 from app import ecb
-from app.services.fx import Rate, RateUnavailableError, parse_rates, rate_on, to_euro
-from tests.conftest import ECB_XML
+from app import nbu
+from app.services.fx import (
+    Chain,
+    CurrencyNotPublishedError,
+    EcbRates,
+    Rate,
+    RateUnavailableError,
+    parse_nbu,
+    parse_rates,
+    rate_on,
+    to_euro,
+)
+from tests.conftest import ECB_XML, NBU_JSON
 
 
 @pytest.fixture
@@ -57,7 +68,9 @@ def test_a_broken_row_is_skipped_not_fatal():
 
 def test_the_days_own_rate_is_used(table):
     rate = rate_on(table, "RON", dt.date(2026, 9, 17))
-    assert (rate.per_euro, rate.published) == (Decimal("5.0740"), dt.date(2026, 9, 17))
+    assert (rate.per_euro, rate.published, rate.source) == (
+        Decimal("5.0740"), dt.date(2026, 9, 17), "ECB",
+    )
 
 
 def test_a_day_with_nothing_published_falls_back_to_the_last_one(table):
@@ -78,7 +91,8 @@ def test_a_date_before_anything_published_is_refused(table):
 
 
 def test_a_currency_the_ecb_does_not_publish_says_so(table):
-    with pytest.raises(RateUnavailableError, match="not a currency"):
+    # A distinct error, because it is the only reason to try another source.
+    with pytest.raises(CurrencyNotPublishedError, match="not published by the ECB"):
         rate_on(table, "UAH", dt.date(2026, 9, 18))
 
 
@@ -95,7 +109,7 @@ def test_a_currency_the_ecb_does_not_publish_says_so(table):
     ],
 )
 def test_an_amount_is_divided_by_its_rate(amount, per_euro, expected):
-    rate = Rate(currency="X", per_euro=Decimal(per_euro), published=dt.date(2026, 9, 18))
+    rate = Rate(currency="X", per_euro=Decimal(per_euro), published=dt.date(2026, 9, 18), source="ECB")
 
     assert to_euro(Decimal(amount), rate) == Decimal(expected)
 
@@ -124,13 +138,16 @@ def serve(monkeypatch, body: bytes = ECB_XML, fail: bool = False) -> list[int]:
     return calls
 
 
-def test_the_file_is_fetched_once_and_then_reused(monkeypatch):
+def test_the_file_is_fetched_once_and_then_reused(monkeypatch, caplog):
     calls = serve(monkeypatch)
 
-    first, second = ecb.get_rates(), ecb.get_rates()
+    with caplog.at_level("INFO", logger="app.ecb"):
+        first, second = ecb.get_rates(), ecb.get_rates()
 
     assert first is second
     assert len(calls) == 1
+    # One line per load, so a deploy can be checked from the server log.
+    assert "ECB rates loaded: 3 days, latest 2026-09-18" in caplog.text
 
 
 def test_the_file_is_refetched_once_it_is_stale(monkeypatch):
@@ -169,3 +186,131 @@ def test_an_absurdly_large_file_is_refused(monkeypatch):
 
     with pytest.raises(RateUnavailableError):
         ecb.get_rates()
+
+
+# --- the hryvnia, from its own central bank ----------------------------------
+
+
+def test_the_nbus_row_is_read_as_hryvnia_per_euro():
+    rate = parse_nbu(NBU_JSON, dt.date(2026, 9, 18))
+
+    assert (rate.currency, rate.per_euro, rate.source) == ("UAH", Decimal("48.5031"), "NBU")
+    # The bank's own date wins: asked about a weekend it answers with the day
+    # the rate was actually set.
+    assert rate.published == dt.date(2026, 9, 18)
+
+
+def test_the_date_asked_for_is_used_when_the_bank_prints_none():
+    row = b'[{"rate":48.5031,"cc":"EUR"}]'
+
+    assert parse_nbu(row, dt.date(2026, 9, 20)).published == dt.date(2026, 9, 20)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [b"", b"not json", b"[]", b'[{"cc":"USD","rate":41.2}]', b'[{"cc":"EUR"}]', b'[{"cc":"EUR","rate":0}]'],
+)
+def test_an_answer_without_a_usable_euro_row_is_refused(payload):
+    with pytest.raises(RateUnavailableError):
+        parse_nbu(payload, dt.date(2026, 9, 18))
+
+
+@pytest.fixture(autouse=True)
+def clean_nbu_cache():
+    nbu.reset_cache()
+    yield
+    nbu.reset_cache()
+
+
+def serve_nbu(monkeypatch, body: bytes = NBU_JSON, fail: bool = False) -> list[dict]:
+    calls: list[dict] = []
+
+    def fake_get(self, url, params=None):
+        calls.append(params or {})
+        if fail:
+            raise httpx.ConnectError("no route to the NBU")
+        return httpx.Response(200, content=body, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx.Client, "get", fake_get)
+    return calls
+
+
+def test_the_hryvnia_is_asked_for_by_date_and_then_cached(monkeypatch, caplog):
+    calls = serve_nbu(monkeypatch)
+    source = nbu.HryvniaRates()
+
+    with caplog.at_level("INFO", logger="app.nbu"):
+        first = source.rate_on("UAH", dt.date(2026, 9, 18))
+        second = source.rate_on("uah", dt.date(2026, 9, 18))
+
+    assert "48.5031 UAH per euro" in caplog.text
+
+    assert first == second
+    assert len(calls) == 1
+    assert calls[0] == {"json": "", "valcode": "EUR", "date": "20260918"}
+
+
+def test_each_day_is_its_own_question(monkeypatch):
+    calls = serve_nbu(monkeypatch)
+    source = nbu.HryvniaRates()
+
+    source.rate_on("UAH", dt.date(2026, 9, 18))
+    source.rate_on("UAH", dt.date(2026, 9, 17))
+
+    assert [c["date"] for c in calls] == ["20260918", "20260917"]
+
+
+def test_the_ukrainian_bank_is_not_asked_about_other_currencies(monkeypatch):
+    calls = serve_nbu(monkeypatch)
+
+    with pytest.raises(CurrencyNotPublishedError):
+        nbu.HryvniaRates().rate_on("RON", dt.date(2026, 9, 18))
+
+    assert calls == []
+
+
+def test_an_unreachable_bank_is_an_error_not_a_guess(monkeypatch):
+    serve_nbu(monkeypatch, fail=True)
+
+    with pytest.raises(RateUnavailableError, match="National Bank of Ukraine"):
+        nbu.HryvniaRates().rate_on("UAH", dt.date(2026, 9, 18))
+
+
+# --- asking one bank, then the other -----------------------------------------
+
+
+def test_the_chain_stops_at_the_first_source_that_quotes_it(table, monkeypatch):
+    calls = serve_nbu(monkeypatch)
+    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+
+    rate = chain.rate_on("RON", dt.date(2026, 9, 18))
+
+    assert rate.per_euro == Decimal("5.0755")
+    assert calls == []
+
+
+def test_the_chain_falls_through_for_a_currency_the_ecb_skips(table, monkeypatch):
+    serve_nbu(monkeypatch)
+    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+
+    assert chain.rate_on("UAH", dt.date(2026, 9, 18)).per_euro == Decimal("48.5031")
+
+
+def test_a_gap_in_one_source_is_not_passed_to_the_next(table, monkeypatch):
+    # The ECB quotes RON but not that far back. Asking the Ukrainian bank
+    # about it would be nonsense, so the chain does not.
+    calls = serve_nbu(monkeypatch)
+    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+
+    with pytest.raises(RateUnavailableError, match="on or before"):
+        chain.rate_on("RON", dt.date(2026, 9, 15))
+
+    assert calls == []
+
+
+def test_a_currency_no_source_quotes_says_so(table, monkeypatch):
+    serve_nbu(monkeypatch)
+    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+
+    with pytest.raises(CurrencyNotPublishedError, match="VND is not a currency"):
+        chain.rate_on("VND", dt.date(2026, 9, 18))

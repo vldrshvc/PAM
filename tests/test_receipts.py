@@ -130,6 +130,7 @@ def test_a_foreign_receipt_is_converted_to_euro(client, auth, fake_vision):
         "currency": "RON",
         "per_euro": "5.0755",
         "rate_date": "2026-09-18",
+        "source": "ECB",
     }
 
 
@@ -164,14 +165,32 @@ def test_a_euro_receipt_is_not_converted(client, auth, fake_vision):
     assert body["converted"] is None
 
 
-def test_a_currency_the_ecb_does_not_publish_is_422(client, auth, fake_vision):
+def test_a_hryvnia_receipt_is_converted_through_the_ukrainian_bank(client, auth, fake_vision):
+    # The ECB does not quote the hryvnia, so the chain falls through to the
+    # NBU. 500.00 / 48.5031 = 10.31.
     headers = auth()
-    fake_vision.answer = answer(total="500.00", currency="UAH")
+    fake_vision.answer = answer(total="500.00", currency="UAH", date="2026-09-18")
+
+    body = post_scan(client, headers).json()
+
+    assert body["total"] == "10.31"
+    assert body["converted"] == {
+        "amount": "500.00",
+        "currency": "UAH",
+        "per_euro": "48.5031",
+        "rate_date": "2026-09-18",
+        "source": "NBU",
+    }
+
+
+def test_a_currency_neither_bank_quotes_is_422(client, auth, fake_vision):
+    headers = auth()
+    fake_vision.answer = answer(total="500.00", currency="VND")
 
     response = post_scan(client, headers)
 
     assert response.status_code == 422
-    assert "UAH" in response.json()["detail"]
+    assert "VND" in response.json()["detail"]
 
 
 def test_an_answer_wrapped_in_chatter_is_still_read(client, auth, fake_vision):
