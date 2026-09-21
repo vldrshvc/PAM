@@ -631,3 +631,62 @@ contrast measurements pass, the walkthrough and all three probes are clean.
 **Known gaps:** no pending *incomes* — money arriving is reported and dropped.
 No mute list yet; that belongs with the phone, which is what learns that an app
 never produces money notifications.
+
+## Notification parsing — the Android half
+
+The phone side of the previous phase. Five new files under
+`ie.yarodev.pam.notify`, no new dependencies: WorkManager, security-crypto and
+AppCompat were already in the build for the widget.
+
+**`MoneyFilter.kt` is the privacy boundary, and it is eight lines.** Android
+does not let a `NotificationListenerService` subscribe to particular apps, so
+the service sees every notification on the device, messages included. Unless
+the text has an amount with a currency next to it, the notification is dropped
+before it is stored, queued, sent, or written to the log. A rule small enough
+to read in one sitting is a rule that can be trusted with that, which is why
+the judgement is crude on purpose: whether it was a payment, which way the
+money went, what shop and what category are all the server's job.
+
+**`Captured.kt` keys on content, not on Android's key.** Banks reuse one
+notification id for every payment, so `sbn.key` would make two different
+purchases collide and the second would be dropped silently. The key is a hash
+of app, text and day instead. Its own trade-off — two identical payments in one
+day collide — is the smaller one: that is rare and recoverable by hand, where
+booking every notification twice would be constant.
+
+**The queue survives no signal.** Captured notifications go into the same
+encrypted store as the token and are drained by a WorkManager job, each posted
+on its own so one rejection does not block the rest. A rejection from the
+server is final and dropped; only a network failure is retried. The queue is
+capped at 100, keeping the newest, because after days offline those are the
+ones still worth confirming.
+
+**The ignored list populates itself.** The server answers every post with an
+outcome, and an app that produces five in a row the server had no use for, and
+never a payment, is muted on the phone. A bank that sends balance updates as
+well as payments is never muted, because its payments reset the count. That
+ordering is the point: the on-device regex costs nothing, so muting exists for
+apps that regularly produce money-*looking* text that is not a transaction —
+those are what would otherwise cost a request and a token every time.
+
+**Reaching the switch.** A static shortcut (long-press the app icon) and a
+`pam://notifications` link from the Accounts tab of the web client, which the
+installed app answers and a browser ignores. Two switches on that screen,
+Android's own access and PAM's, because granting the permission should not
+start anything by itself.
+
+**Two things caught by reading rather than running.** AppCompat inflates
+`<Switch>` as `SwitchCompat`, which does not extend `android.widget.Switch`, so
+`findViewById<Switch>` would have thrown at runtime — the layout and the field
+are `SwitchCompat` now. And `onNotificationPosted` runs on the main thread for
+every notification on the device, so the keystore-backed store is opened once
+per service rather than once per notification.
+
+**Verified:** the filter's pattern was run against the same eleven cases the
+server's tests use, in four languages, and agrees on all of them. The web half
+of the change went through the usual battery: 258 tests, thirty-six contrast
+measurements, the walkthrough and all four browser probes clean.
+
+**Not verified here:** anything that needs to compile or run on a phone. There
+is no Android SDK in this sandbox, so none of the Kotlin has been built. The
+APK is the proof, and it needs Android Studio.

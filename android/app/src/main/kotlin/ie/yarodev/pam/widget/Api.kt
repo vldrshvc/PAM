@@ -6,7 +6,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/** The two calls the widget needs. Plain HttpURLConnection: no extra dependency for two requests. */
+/** The handful of calls the app makes. Plain HttpURLConnection: no extra
+ *  dependency for three requests. */
 object Api {
 
     class ApiException(message: String) : IOException(message)
@@ -19,6 +20,16 @@ object Api {
 
     fun dailySummary(baseUrl: String, token: String, timezone: String): JSONObject =
         request("$baseUrl/summary/daily?tz=${encode(timezone)}", "GET", body = null, contentType = null, token = token)
+
+    /** One captured notification. The server answers with what it made of it. */
+    fun postNotification(baseUrl: String, token: String, notification: JSONObject, timezone: String): JSONObject =
+        request(
+            "$baseUrl/notifications?tz=${encode(timezone)}",
+            "POST",
+            notification.toString(),
+            "application/json",
+            token,
+        )
 
     private fun request(url: String, method: String, body: String?, contentType: String?, token: String?): JSONObject {
         val connection = URL(url).openConnection() as HttpURLConnection

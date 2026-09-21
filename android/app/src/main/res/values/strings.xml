@@ -12,4 +12,15 @@
     <string name="login_failed">Login failed: %1$s</string>
     <!-- Must match the site the TWA opens; the server publishes the matching assetlinks.json. -->
     <string name="asset_statements">[{ \"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": { \"namespace\": \"web\", \"site\": \"https://pam-u8qh.onrender.com\" } }]</string>
+
+    <string name="notify_title">Bank notifications</string>
+    <string name="notify_explainer">PAM can read the notifications your banking apps post and turn payments into entries you confirm.\n\nAndroid gives a notification reader everything, including your messages, so PAM checks each one on the phone first: unless it has an amount with a currency in it, the notification is dropped and never leaves the device. What does get sent is never recorded as spending — it waits in the app until you tap to confirm it.</string>
+    <string name="notify_grant">Open notification access</string>
+    <string name="notify_switch">Capture bank notifications</string>
+    <string name="notify_unmute">Clear the ignored list</string>
+    <string name="notify_access_on">Android access: granted</string>
+    <string name="notify_access_off">Android access: not granted yet</string>
+    <string name="notify_needs_login">Set up the widget first, so PAM has an account to send to.</string>
+    <string name="notify_muted_none">No apps ignored yet.</string>
+    <string name="notify_muted_some">Ignored, after too many notifications that were not payments: %1$s</string>
 </resources>

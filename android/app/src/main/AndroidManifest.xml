@@ -53,6 +53,37 @@
             </intent-filter>
         </activity>
 
+        <meta-data
+            android:name="android.app.shortcuts"
+            android:resource="@xml/shortcuts" />
+
+        <!-- Turning notification capture on. Reached by long-pressing the app
+             icon, or from the web client's "capture bank notifications" row,
+             which links to pam://notifications. -->
+        <activity
+            android:name=".notify.NotificationSetupActivity"
+            android:exported="true"
+            android:label="@string/notify_title">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pam" android:host="notifications" />
+            </intent-filter>
+        </activity>
+
+        <!-- Sees every notification on the device; MoneyFilter is what keeps
+             all but the ones with an amount in them from going anywhere. -->
+        <service
+            android:name=".notify.PamNotificationListener"
+            android:exported="false"
+            android:label="@string/notify_title"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".widget.PamWidgetReceiver"
             android:exported="true"
