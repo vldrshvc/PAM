@@ -20,10 +20,8 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 def rates_dependency() -> RateLookup:
-    try:
-        return Chain((EcbRates(get_rates()), HryvniaRates()))
-    except RateUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    """Rates, fetched only if a notification turns out not to be in euro."""
+    return Chain((EcbRates(get_rates), HryvniaRates()))
 
 
 def guess_account(session: Session, user_id: int, package: str) -> Account:

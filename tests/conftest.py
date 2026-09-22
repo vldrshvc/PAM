@@ -190,7 +190,7 @@ def rates():
 
     from app.routers.notifications import rates_dependency as notification_rates
 
-    chain = Chain((EcbRates(parse_rates(ECB_XML)), StubHryvnia()))
+    chain = Chain((EcbRates(lambda: parse_rates(ECB_XML)), StubHryvnia()))
     app.dependency_overrides[rates_dependency] = lambda: chain
     app.dependency_overrides[notification_rates] = lambda: chain
     return chain

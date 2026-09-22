@@ -14,6 +14,7 @@ import datetime as dt
 import json
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from collections.abc import Callable
 from typing import Protocol
 from xml.etree import ElementTree
 
@@ -162,12 +163,17 @@ class RateLookup(Protocol):
 
 @dataclass(frozen=True)
 class EcbRates:
-    """The ECB's table, wrapped so it can sit in a chain."""
+    """The ECB's table, wrapped so it can sit in a chain.
 
-    table: RateTable
+    The table is fetched on the first question, not when this is built. Most
+    receipts and nearly every notification are in euro and never ask one, and
+    an unreachable ECB should not fail a euro scan.
+    """
+
+    load: Callable[[], RateTable]
 
     def rate_on(self, currency: str, on: dt.date) -> Rate:
-        return rate_on(self.table, currency, on)
+        return rate_on(self.load(), currency, on)
 
 
 @dataclass(frozen=True)

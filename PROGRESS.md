@@ -706,3 +706,19 @@ when launched without a widget id.
 
 Also from the screenshot: the heading sat under the status bar. The theme has
 no action bar, so the screen needed `fitsSystemWindows`.
+
+## Fix — the rate table is fetched only when something needs it
+
+`rates_dependency` called `get_rates()` while building the dependency, so
+every scan and every notification contacted the ECB even when the amount was
+already in euro — which is nearly all of them. Worse than wasteful: an ECB
+outage would have failed euro receipts and euro notifications that never
+needed a rate at all.
+
+`EcbRates` now holds the loader rather than the table and calls it on the
+first question. A euro path never touches it. The test removes the fixture's
+stub so the endpoint builds the real chain, points `ecb.get_rates` at
+something that raises, and scans a euro receipt; with the fetch made eager
+again it fails, which is what makes it worth keeping. Confirmed in the browser
+too: the notification probe ran a full round trip with the rates stand-in
+server switched off.

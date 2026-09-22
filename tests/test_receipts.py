@@ -222,3 +222,21 @@ def test_a_provider_failure_is_502(client, auth, fake_vision):
 
 def test_scanning_needs_a_token(client, fake_vision):
     assert client.post("/receipts/scan", files={"photo": PHOTO}).status_code == 401
+
+
+def test_a_euro_receipt_never_asks_a_bank_for_a_rate(client, auth, fake_vision, monkeypatch):
+    # The rate table is fetched lazily, so an unreachable ECB cannot fail a
+    # scan that needed no conversion. The fixture's stub is removed here so
+    # the endpoint builds the real chain.
+    from app import ecb
+    from app.main import app
+    from app.routers.receipts import rates_dependency
+
+    app.dependency_overrides.pop(rates_dependency, None)
+    monkeypatch.setattr(ecb, "get_rates", lambda: (_ for _ in ()).throw(
+        AssertionError("the ECB was contacted for a euro receipt")
+    ))
+    headers = auth()
+    fake_vision.answer = answer(currency="EUR")
+
+    assert post_scan(client, headers).status_code == 200

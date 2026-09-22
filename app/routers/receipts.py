@@ -32,15 +32,14 @@ def vision_dependency() -> LLMClient:
 def rates_dependency() -> RateLookup:
     """Where a euro rate comes from: the ECB, then the hryvnia's own bank.
 
-    The ECB's table is fetched once and cached, and a stale copy is served
-    when it is down, because a day-old reference rate beats refusing to read
-    the receipt. The NBU is only asked about the hryvnia, and only when the
-    ECB has said it does not quote the currency at all.
+    Neither is contacted here. A euro receipt asks no rate at all, so building
+    this must not be able to fail; the fetch happens on the first question and
+    its failure is reported like any other unreadable value.
+
+    The NBU is only asked about the hryvnia, and only once the ECB has said it
+    does not quote the currency at all.
     """
-    try:
-        return Chain((EcbRates(get_rates()), HryvniaRates()))
-    except RateUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    return Chain((EcbRates(get_rates), HryvniaRates()))
 
 
 @router.post("/scan", response_model=ReceiptScanResponse)

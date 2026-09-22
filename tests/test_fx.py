@@ -281,7 +281,7 @@ def test_an_unreachable_bank_is_an_error_not_a_guess(monkeypatch):
 
 def test_the_chain_stops_at_the_first_source_that_quotes_it(table, monkeypatch):
     calls = serve_nbu(monkeypatch)
-    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+    chain = Chain((EcbRates(lambda: table), nbu.HryvniaRates()))
 
     rate = chain.rate_on("RON", dt.date(2026, 9, 18))
 
@@ -291,7 +291,7 @@ def test_the_chain_stops_at_the_first_source_that_quotes_it(table, monkeypatch):
 
 def test_the_chain_falls_through_for_a_currency_the_ecb_skips(table, monkeypatch):
     serve_nbu(monkeypatch)
-    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+    chain = Chain((EcbRates(lambda: table), nbu.HryvniaRates()))
 
     assert chain.rate_on("UAH", dt.date(2026, 9, 18)).per_euro == Decimal("48.5031")
 
@@ -300,7 +300,7 @@ def test_a_gap_in_one_source_is_not_passed_to_the_next(table, monkeypatch):
     # The ECB quotes RON but not that far back. Asking the Ukrainian bank
     # about it would be nonsense, so the chain does not.
     calls = serve_nbu(monkeypatch)
-    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+    chain = Chain((EcbRates(lambda: table), nbu.HryvniaRates()))
 
     with pytest.raises(RateUnavailableError, match="on or before"):
         chain.rate_on("RON", dt.date(2026, 9, 15))
@@ -310,7 +310,23 @@ def test_a_gap_in_one_source_is_not_passed_to_the_next(table, monkeypatch):
 
 def test_a_currency_no_source_quotes_says_so(table, monkeypatch):
     serve_nbu(monkeypatch)
-    chain = Chain((EcbRates(table), nbu.HryvniaRates()))
+    chain = Chain((EcbRates(lambda: table), nbu.HryvniaRates()))
 
     with pytest.raises(CurrencyNotPublishedError, match="VND is not a currency"):
         chain.rate_on("VND", dt.date(2026, 9, 18))
+
+
+def test_the_table_is_only_fetched_when_something_is_not_in_euro(monkeypatch):
+    # A euro receipt asks no rate at all. If the ECB were contacted anyway,
+    # an outage there would fail scans that never needed a rate.
+    loads = []
+
+    def load():
+        loads.append(1)
+        return parse_rates(ECB_XML)
+
+    chain = Chain((EcbRates(load), nbu.HryvniaRates()))
+
+    assert loads == []
+    chain.rate_on("RON", dt.date(2026, 9, 18))
+    assert loads == [1]
