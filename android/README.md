@@ -18,9 +18,14 @@ Point a build at a local server with `-PpamBaseUrl=http://10.0.2.2:8000` (emulat
 ## Notification capture
 
 Turn it on by long-pressing the PAM icon → **Bank notifications**, or from the
-Accounts tab in the app ("Set up in the app"). Two separate switches there:
-Android's own notification access, and PAM's. Granting the Android permission
-starts nothing on its own.
+Accounts tab in the app ("Set up in the app"). Some launchers hide app
+shortcuts; `adb shell am start -a android.intent.action.VIEW -d
+"pam://notifications"` opens the same screen from a laptop.
+
+Two separate switches there: Android's own notification access, and PAM's.
+Granting the Android permission starts nothing on its own. If there is no
+token yet the screen offers a **Log in** button, which is the same form the
+widget uses — capture does not need a widget, only an account to send to.
 
 **What leaves the phone.** Android does not let a listener subscribe to
 particular apps, so this service sees every notification on the device,

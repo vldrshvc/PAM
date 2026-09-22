@@ -690,3 +690,19 @@ measurements, the walkthrough and all four browser probes clean.
 **Not verified here:** anything that needs to compile or run on a phone. There
 is no Android SDK in this sandbox, so none of the Kotlin has been built. The
 APK is the proof, and it needs Android Studio.
+
+## Fix — capture should not require placing a widget
+
+Reported from the phone: the setup screen opened, Android access was granted,
+and the capture switch was greyed out with "Set up the widget first".
+
+That gate was mine and it was wrong. The switch needs a *token*, and the token
+happened to come only from the widget's login dialog — so someone who wants
+notification capture and no widget was asked to place one, on a launcher that
+makes widgets awkward. The screen now offers a **Log in** button while there is
+no token, which starts the same form the widget uses, and hides it once there
+is one. Nothing is duplicated; the existing activity already finished cleanly
+when launched without a widget id.
+
+Also from the screenshot: the heading sat under the status bar. The theme has
+no action bar, so the screen needed `fitsSystemWindows`.

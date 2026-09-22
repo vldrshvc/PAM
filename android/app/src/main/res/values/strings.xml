@@ -3,7 +3,7 @@
     <string name="app_name">PAM</string>
     <string name="widget_label">PAM balance</string>
     <string name="widget_description">Balance, today\'s spend and your target pace.</string>
-    <string name="widget_setup_title">Connect the widget</string>
+    <string name="widget_setup_title">Connect to PAM</string>
     <string name="server_url">Server URL</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
@@ -20,7 +20,8 @@
     <string name="notify_unmute">Clear the ignored list</string>
     <string name="notify_access_on">Android access: granted</string>
     <string name="notify_access_off">Android access: not granted yet</string>
-    <string name="notify_needs_login">Set up the widget first, so PAM has an account to send to.</string>
+    <string name="notify_needs_login">Log in first, so PAM has an account to send to. The same login serves the widget.</string>
+    <string name="notify_log_in">Log in</string>
     <string name="notify_muted_none">No apps ignored yet.</string>
     <string name="notify_muted_some">Ignored, after too many notifications that were not payments: %1$s</string>
 </resources>

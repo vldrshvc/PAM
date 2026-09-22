@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- NoActionBar theme: without this the heading sits under the status bar. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -39,6 +41,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/notify_grant"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/log_in"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/notify_log_in"
             android:layout_marginBottom="24dp" />
 
         <androidx.appcompat.widget.SwitchCompat
