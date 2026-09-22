@@ -168,6 +168,21 @@ def test_a_hryvnia_receipt_is_converted_through_the_ukrainian_bank(client, auth,
     }
 
 
+def test_a_receipt_older_than_the_rate_file_still_scans(client, auth, fake_vision):
+    # The file holds ninety days; this receipt's date is two years back, which
+    # is what a misread year looks like. Losing the total, the shop and the
+    # category over a rate would be the wrong trade.
+    headers = auth()
+    fake_vision.answer = answer(total="57.90", currency="RON", date="2024-09-20")
+
+    body = post_scan(client, headers).json()
+
+    # 57.90 / 5.0722, the oldest RON rate the file holds.
+    assert body["total"] == "11.42"
+    # The day the rate actually came from is reported, not the receipt's.
+    assert body["converted"]["rate_date"] == "2026-09-16"
+
+
 def test_a_currency_neither_bank_quotes_is_422(client, auth, fake_vision):
     headers = auth()
     fake_vision.answer = answer(total="500.00", currency="VND")

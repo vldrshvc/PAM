@@ -85,9 +85,14 @@ def test_a_currency_missing_on_its_day_falls_back_too(table):
     assert (rate.per_euro, rate.published) == (Decimal("0.86610"), dt.date(2026, 9, 16))
 
 
-def test_a_date_before_anything_published_is_refused(table):
-    with pytest.raises(RateUnavailableError, match="on or before"):
-        rate_on(table, "RON", dt.date(2026, 9, 15))
+def test_a_date_before_the_file_starts_uses_its_earliest_rate(table):
+    # The file holds ninety days. A receipt older than that — or a misread
+    # year — must not cost the whole reading, so the nearest rate is used and
+    # the caller shows which day it came from.
+    rate = rate_on(table, "RON", dt.date(2024, 9, 20))
+
+    assert rate.published == dt.date(2026, 9, 16)
+    assert rate.per_euro == Decimal("5.0722")
 
 
 def test_a_currency_the_ecb_does_not_publish_says_so(table):
@@ -296,14 +301,13 @@ def test_the_chain_falls_through_for_a_currency_the_ecb_skips(table, monkeypatch
     assert chain.rate_on("UAH", dt.date(2026, 9, 18)).per_euro == Decimal("48.5031")
 
 
-def test_a_gap_in_one_source_is_not_passed_to_the_next(table, monkeypatch):
-    # The ECB quotes RON but not that far back. Asking the Ukrainian bank
-    # about it would be nonsense, so the chain does not.
+def test_a_currency_one_source_quotes_never_reaches_the_next(table, monkeypatch):
+    # The ECB quotes RON, so the Ukrainian bank is never asked about it —
+    # whatever date is involved.
     calls = serve_nbu(monkeypatch)
     chain = Chain((EcbRates(lambda: table), nbu.HryvniaRates()))
 
-    with pytest.raises(RateUnavailableError, match="on or before"):
-        chain.rate_on("RON", dt.date(2026, 9, 15))
+    chain.rate_on("RON", dt.date(2024, 1, 1))
 
     assert calls == []
 

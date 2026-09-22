@@ -753,3 +753,33 @@ depends on a local `.env`. `ruff check .` passes clean.
 **Not verified here:** the workflow itself, and the Docker job. GitHub Actions
 cannot run in this sandbox and there is no Docker daemon either. The first push
 is the proof, and the badge at the top of the README is where it shows.
+
+## Fix — a rate must not cost the whole reading
+
+Reported from the phone: a Romanian receipt came back "No RON rate published
+on or before 20 Sep 2024. Type it in yourself."
+
+Two things in that one line. The model read the year as 2024, and the ECB's
+ninety-day file naturally has nothing that far back — so `rate_on` raised, and
+the raise threw away the total, the shop, the date and the category over a
+missing rate. That is the wrong trade: the user wanted an expense and got
+nothing.
+
+`rate_on` now takes the nearest published day it holds — the day itself, the
+last working day before it, or the earliest in the file when the date predates
+it entirely. The conversion is approximate in that last case, and it is meant
+to be visible rather than hidden: the response already carries the rate's own
+date, and the client already shows it, so "ECB 16 Sep" against a receipt dated
+2024 reads as what it is. `CurrencyNotPublishedError` still means what it
+meant — this source does not quote that currency at all — so the fall-through
+to the NBU is unchanged.
+
+**Verified:** the old refusal test became its opposite, an endpoint test scans
+a receipt dated two years back and gets 11.42 at the file's earliest rate with
+`rate_date` reporting 2026-09-16, and the chain test now asserts the simpler
+truth that a currency the ECB quotes never reaches the Ukrainian bank whatever
+the date. 261 tests green, ruff clean.
+
+**Still open:** why the year read as 2024 at all. That is the model misreading
+a printed date, not something the conversion can fix, and the date lands in the
+form where it can be corrected before confirming.

@@ -92,17 +92,22 @@ def parse_rates(xml: bytes) -> RateTable:
 
 
 def rate_on(table: RateTable, currency: str, on: dt.date) -> Rate:
-    """The rate in force on `on`: that day's, or the last one before it."""
+    """The rate in force on `on`, or the nearest one the file still holds.
+
+    Normally that is the day itself or the last working day before it. But the
+    file only goes back ninety days, and a receipt can be older than that —
+    or a model can misread a year. Refusing the whole reading over a rate
+    would throw away the total, the shop and the category, so the closest
+    published day is used instead. The caller reports which day it was, and a
+    rate dated two years off the receipt is visible for what it is.
+    """
     code = currency.upper()
-    for day in sorted((d for d in table if d <= on), reverse=True):
-        per_euro = table[day].get(code)
-        if per_euro is not None:
-            return Rate(currency=code, per_euro=per_euro, published=day, source=ECB)
-    if any(code in rates for rates in table.values()):
-        raise RateUnavailableError(
-            f"No {code} rate published on or before {on:%-d %b %Y}"
-        )
-    raise CurrencyNotPublishedError(f"{code} is not published by the ECB")
+    days = sorted(day for day, rates in table.items() if code in rates)
+    if not days:
+        raise CurrencyNotPublishedError(f"{code} is not published by the ECB")
+    earlier = [day for day in days if day <= on]
+    day = earlier[-1] if earlier else days[0]
+    return Rate(currency=code, per_euro=table[day][code], published=day, source=ECB)
 
 
 def to_euro(amount: Decimal, rate: Rate) -> Decimal:
