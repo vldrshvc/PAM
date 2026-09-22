@@ -1,0 +1,72 @@
+name: CI
+
+# Every push and every pull request: the suite talks to a real PostgreSQL, so
+# "it passed on my machine" and "it passed here" mean the same thing.
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: pytest
+    runs-on: ubuntu-latest
+
+    # The tests create their own <db>_test database on this instance and
+    # truncate between cases; nothing is mocked at the database layer.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finance
+          POSTGRES_PASSWORD: finance
+          POSTGRES_DB: finance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://finance:finance@localhost:5432/finance
+      # A throwaway secret of the right length. The real one is never here.
+      JWT_SECRET: ci-secret-that-is-long-enough-for-hmac
+      # No key: the categorizer and the receipt scanner are faked through
+      # dependency overrides, and a key in CI would mean real spend.
+      LLM_API_KEY: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # the version the Dockerfile ships
+          cache: pip
+
+      # requirements-dev.txt starts with -r requirements.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Tests
+        run: pytest -q
+
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The linter alone: it has no use for the app's dependencies.
+      - run: pip install ruff==0.16.8
+      - run: ruff check .
+
+  image:
+    name: docker build
+    runs-on: ubuntu-latest
+    # The README claims this runs from a clean clone; this is what keeps that
+    # claim true when a dependency or a COPY path changes.
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t pam:ci .

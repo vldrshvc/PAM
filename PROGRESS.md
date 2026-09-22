@@ -722,3 +722,34 @@ something that raises, and scans a euro receipt; with the fetch made eager
 again it fails, which is what makes it worth keeping. Confirmed in the browser
 too: the notification probe ran a full round trip with the rates stand-in
 server switched off.
+
+## CI
+
+Three jobs in `.github/workflows/ci.yml`, on every push and pull request.
+
+**pytest** against a `postgres:16` service container, so the suite runs in CI
+exactly as it runs locally: a real database, its own `_test` schema, nothing
+mocked at that layer. No LLM key is set — the categorizer and the scanner are
+faked through dependency overrides, and a key in CI would mean real spend on
+every push.
+
+**ruff**, configured in `pyproject.toml` with `E` and `F` and `E501` off. The
+choice is deliberate rather than lazy: an unused import or an undefined name is
+a defect worth failing a build over, while line length is a style preference
+this project does not hold — a long assertion that reads as one thought beats
+the same thought wrapped to satisfy a number. Enabling it found three genuine
+unused imports, which are gone.
+
+**docker build**, because the README's first promise is that the project runs
+from a clean clone, and that is the kind of promise that quietly stops being
+true when a dependency or a `COPY` path changes.
+
+**Verified as far as this sandbox allows:** a fresh virtualenv installed from
+`requirements-dev.txt` alone, then the suite run with `.env` moved out of the
+way and only the three environment variables CI sets — 260 passed. That is the
+real check, because it proves the requirements are complete and that nothing
+depends on a local `.env`. `ruff check .` passes clean.
+
+**Not verified here:** the workflow itself, and the Docker job. GitHub Actions
+cannot run in this sandbox and there is no Docker daemon either. The first push
+is the proof, and the badge at the top of the README is where it shows.

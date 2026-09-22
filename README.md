@@ -1,5 +1,7 @@
 # Personal Finance Tracker
 
+[![CI](https://github.com/vldrshvc/PAM/actions/workflows/ci.yml/badge.svg)](https://github.com/vldrshvc/PAM/actions/workflows/ci.yml)
+
 Self-hosted expense tracker with an API-first backend, LLM-based expense categorization, and a daily summary endpoint built as a frozen contract for an Android home-screen widget.
 
 The home screen is the history: every expense, income and transfer, newest
@@ -29,7 +31,8 @@ Styled as a paper notebook, light and dark. The rules behind it are in
 | LLM | Any OpenAI-compatible chat endpoint | Provider is configuration, not code. Gemini free tier by default |
 | Client | Plain HTML/JS served at `/app`, installable PWA | Thin: every action is one API call. No framework, no build step |
 | Design | Hand-rolled CSS, subsetted embedded fonts | Notebook skin, light and dark, WCAG AA verified in-browser |
-| Tests | pytest, 258 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| Tests | pytest, 260 tests, real Postgres | Separate `_test` database, LLM faked via dependency override |
+| CI | GitHub Actions | Every push: the suite against a real Postgres service, ruff, and a Docker build |
 | Packaging | Dockerfile + docker-compose | One command from a clean clone |
 
 ## Run it
@@ -226,13 +229,26 @@ alembic upgrade head
 
 `alembic check` reports whether models and migrations are in sync; the test suite asserts the same.
 
-## Tests
+## Tests and CI
 
 ```bash
-pytest
+pytest          # the suite
+ruff check .    # the linter CI runs
 ```
 
-258 tests in about 25 seconds. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+260 tests in about 25 seconds, and on every push through GitHub Actions against a `postgres:16` service container, so "green here" and "green on my machine" mean the same thing. They run against a real PostgreSQL database named `<your db>_test`, created on first run and truncated after every test, so nothing is mocked at the database layer. The LLM client is replaced through FastAPI's `dependency_overrides` with a fake whose answer each test scripts. The budget maths, the target maths and the categorization fallback have dedicated pure-function tests because that's where the logic lives, a migration test runs every revision against an empty database and checks the result matches the models, and another applies the accounts migration to a populated baseline database and checks the backfill.
+
+`.github/workflows/ci.yml` runs three jobs on every push and pull request: the
+suite, `ruff`, and a Docker build. The Docker job exists because the first line
+of this README promises the project runs from a clean clone — that promise is
+the kind that quietly stops being true when a dependency or a `COPY` path
+changes, so it is checked rather than asserted. CI has no LLM key: the
+categorizer and the receipt scanner are faked through dependency overrides, and
+a key there would mean real spend on every push.
+
+Ruff is configured in `pyproject.toml` with `E` and `F`, and `E501` switched
+off: an unused import or an undefined name is a defect, while line length is a
+style preference this project does not hold.
 
 ## Configuration
 

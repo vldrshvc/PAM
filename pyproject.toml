@@ -1,0 +1,13 @@
+# Ruff is the project's linter, run in CI on every push.
+#
+# E and F only, and E501 off: an unused import or an undefined name is a
+# defect, while line length is a style preference this project does not hold —
+# a long assertion that reads as one thought is better than the same thought
+# wrapped to satisfy a number.
+[tool.ruff]
+target-version = "py312"
+exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501"]

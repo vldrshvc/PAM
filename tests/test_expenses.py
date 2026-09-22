@@ -1,4 +1,3 @@
-from decimal import Decimal
 
 
 def test_create_expense_normalizes_price_and_defaults_status(client, auth):

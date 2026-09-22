@@ -176,7 +176,6 @@ NBU_JSON = b'[{"r030":978,"txt":"\xd0\x84\xd0\xb2\xd1\x80\xd0\xbe","rate":48.503
 @pytest.fixture
 def rates():
     """The real chain, with both banks' files served from memory."""
-    import httpx
 
     from app.services.fx import Chain, EcbRates, parse_rates
 
